@@ -55,6 +55,7 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
   let account: AccountUser | null = null;
   let overlay: HTMLElement | null = null;
   let googlePopup: Window | null = null;
+  let googlePoll = 0;
   let authError: ((message: string) => void) | null = null;
 
   function persist(next: string): void {
@@ -138,39 +139,83 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
 
   function googleButton(): HTMLButtonElement {
     const btn = h('button', { class: 'auth-google', type: 'button' }, [googleIcon(), h('span', {}, ['使用 Google 登录'])]);
-    btn.addEventListener('click', openGoogle);
+    btn.addEventListener('click', () => void openGoogle());
     return btn;
   }
 
-  function openGoogle(): void {
-    const width = 460;
-    const height = 620;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-    googlePopup = window.open(
-      api.auth.googleStartUrl(window.location.origin),
-      'sicsic-google',
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
+  function stopGooglePoll(): void {
+    if (googlePoll) window.clearInterval(googlePoll);
+    googlePoll = 0;
   }
 
-  function onMessage(event: MessageEvent): void {
-    if (event.origin !== config.apiOrigin) return;
-    const data = event.data as { type?: string; token?: string; error?: string };
-    if (!data || (data.type !== 'sicsic-auth' && data.type !== 'sodesu-auth')) return;
+  function finishGoogle(data: { token?: string; user?: AccountUser; error?: string }): void {
+    stopGooglePoll();
     googlePopup?.close();
     googlePopup = null;
     if (data.error) {
       authError?.(ERROR_TEXT[data.error] || 'Google 登录失败，请重试');
       return;
     }
+    if (data.token && data.user) {
+      applySession(data.token, data.user);
+      return;
+    }
     if (data.token) {
       persist(data.token);
       void refresh().then(() => {
-        closeOverlay();
-        onChange();
+        if (account) {
+          closeOverlay();
+          onChange();
+        } else {
+          authError?.('登录已创建，请稍后重试');
+        }
       });
     }
+  }
+
+  function pollGoogle(state: string): void {
+    stopGooglePoll();
+    let attempts = 0;
+    googlePoll = window.setInterval(() => {
+      attempts += 1;
+      if (attempts > 75) {
+        stopGooglePoll();
+        authError?.('Google 登录超时，请重试');
+        return;
+      }
+      void api.auth.googleResult(state).then((data) => {
+        if (!data.pending) finishGoogle(data);
+      }).catch(() => undefined);
+    }, 1200);
+  }
+
+  async function openGoogle(): Promise<void> {
+    const width = 460;
+    const height = 620;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    stopGooglePoll();
+    googlePopup = window.open('about:blank', 'sicsic-google', `width=${width},height=${height},left=${left},top=${top}`);
+    if (!googlePopup) {
+      authError?.('无法打开 Google 登录窗口');
+      return;
+    }
+    try {
+      const { url, state } = await api.auth.googleStart(window.location.origin);
+      pollGoogle(state);
+      googlePopup.location.href = url;
+    } catch (err) {
+      googlePopup.close();
+      googlePopup = null;
+      authError?.(messageFor(err));
+    }
+  }
+
+  function onMessage(event: MessageEvent): void {
+    if (event.origin !== config.apiOrigin) return;
+    const data = event.data as { type?: string; token?: string; user?: AccountUser; error?: string };
+    if (!data || (data.type !== 'sicsic-auth' && data.type !== 'sodesu-auth')) return;
+    finishGoogle(data);
   }
 
   window.addEventListener('message', onMessage);

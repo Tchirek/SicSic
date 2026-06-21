@@ -126,6 +126,16 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
     setBadge(token: string, badge: BadgeKind): Promise<{ badge: BadgeKind }> {
       return request('/api/auth/badge', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ badge }) });
     },
+    googleStart(origin: string): Promise<{ url: string; state: string }> {
+      return request(`/api/auth/google/start?mode=json&origin=${encodeURIComponent(origin)}`);
+    },
+    async googleResult(state: string): Promise<{ pending?: boolean; token?: string; user?: AccountUser; error?: string }> {
+      const response = await fetch(joinUrl(config.apiOrigin, `/api/auth/google/result?state=${encodeURIComponent(state)}`));
+      const body = await parseJson<{ pending?: boolean; token?: string; user?: AccountUser; error?: string }>(response);
+      if (response.status === 202) return body;
+      if (!response.ok) throw new ApiError(body.error || `request_${response.status}`, body.retryAfterMs);
+      return body;
+    },
     googleStartUrl(origin: string): string {
       return joinUrl(config.apiOrigin, `/api/auth/google/start?origin=${encodeURIComponent(origin)}`);
     }
