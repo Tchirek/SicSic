@@ -189,26 +189,23 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
     }, 1200);
   }
 
-  async function openGoogle(): Promise<void> {
+  function openGoogle(): void {
     const width = 460;
     const height = 620;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
+    const state = crypto.randomUUID();
     stopGooglePoll();
-    googlePopup = window.open('about:blank', 'sicsic-google', `width=${width},height=${height},left=${left},top=${top}`);
+    googlePopup = window.open(
+      api.auth.googleStartUrl(window.location.origin, state),
+      'sicsic-google',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
     if (!googlePopup) {
       authError?.('无法打开 Google 登录窗口');
       return;
     }
-    try {
-      const { url, state } = await api.auth.googleStart(window.location.origin);
-      pollGoogle(state);
-      googlePopup.location.href = url;
-    } catch (err) {
-      googlePopup.close();
-      googlePopup = null;
-      authError?.(messageFor(err));
-    }
+    pollGoogle(state);
   }
 
   function onMessage(event: MessageEvent): void {

@@ -126,8 +126,9 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
     setBadge(token: string, badge: BadgeKind): Promise<{ badge: BadgeKind }> {
       return request('/api/auth/badge', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ badge }) });
     },
-    googleStart(origin: string): Promise<{ url: string; state: string }> {
-      return request(`/api/auth/google/start?mode=json&origin=${encodeURIComponent(origin)}`);
+    googleStart(origin: string, state?: string): Promise<{ url: string; state: string }> {
+      const query = `mode=json&origin=${encodeURIComponent(origin)}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
+      return request(`/api/auth/google/start?${query}`);
     },
     async googleResult(state: string): Promise<{ pending?: boolean; token?: string; user?: AccountUser; error?: string }> {
       const response = await fetch(joinUrl(config.apiOrigin, `/api/auth/google/result?state=${encodeURIComponent(state)}`));
@@ -136,8 +137,9 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
       if (!response.ok) throw new ApiError(body.error || `request_${response.status}`, body.retryAfterMs);
       return body;
     },
-    googleStartUrl(origin: string): string {
-      return joinUrl(config.apiOrigin, `/api/auth/google/start?origin=${encodeURIComponent(origin)}`);
+    googleStartUrl(origin: string, state?: string): string {
+      const query = `origin=${encodeURIComponent(origin)}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
+      return joinUrl(config.apiOrigin, `/api/auth/google/start?${query}`);
     }
   };
 
