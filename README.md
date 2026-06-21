@@ -1,14 +1,12 @@
 # SicSic
 
-SicSic is a public AGPL comment UI, derived from
-[BeiyanYunyi/Sodesu v0.5.2](https://github.com/BeiyanYunyi/sodesu) and reshaped
-into a focused iframe product for NormalPics, NormalDocs, this blog, and their
-Cloudflare Worker/D1 comment APIs.
+SicSic is an independent AGPL iframe comment UI for NormalPics, NormalDocs,
+this blog, and their Cloudflare Worker/D1 comment APIs.
 
-> **The product is `embed/`.** The repository root keeps the full Sodesu v0.5.2
-> source tree (Solid source, Waline-compatible API, docs, exports) for AGPL
-> provenance and attribution. This repository is no longer a GitHub fork, but
-> BeiyanYunyi's Sodesu remains the named upstream.
+> **The product is `embed/`.** SicSic is not a GitHub fork and does not present
+> itself as Sodesu. It carries code and ideas derived from
+> [BeiyanYunyi/Sodesu v0.5.2](https://github.com/BeiyanYunyi/sodesu), with the
+> original copyright and AGPL attribution kept in place.
 >
 > **Anonymous comments are the first-class path.** Accounts (login, profile, own
 > edit/delete, avatar badge) are an opt-in *backend capability*: the account UI only
@@ -18,10 +16,10 @@ Cloudflare Worker/D1 comment APIs.
 
 ## Lineage
 
-Sodesu had the right small, nimble feeling. SicSic keeps that spirit, the AGPL
-license, and the original copyright trail, while narrowing the deployed product
-to Markdown comments, replies, likes, optional accounts, and a strict
-`postMessage` iframe bridge.
+SicSic is its own project. Its historical source includes BeiyanYunyi/Sodesu
+v0.5.2, whose copyright notices and AGPL license remain visible and respected.
+The deployed product is narrowed to Markdown comments, replies, likes, optional
+accounts, and a strict `postMessage` iframe bridge.
 
 The original source, copyright notices, and AGPL license are kept. Product notes
 live in `MODIFICATIONS.md` and `INTEGRATION.md`.

@@ -2,9 +2,9 @@
 
 Integration and maintenance details: [INTEGRATION.md](./INTEGRATION.md)
 
-SicSic retains the complete BeiyanYunyi/Sodesu v0.5.2 source tree and its
-AGPL-3.0 license for provenance. The `embed/` directory contains the focused
-iframe comment product derived from Sodesu's interaction model.
+SicSic is an independent AGPL iframe comment project. It includes code and ideas
+derived from BeiyanYunyi/Sodesu v0.5.2, with original copyright and license
+notices kept where required. The product entry point is `embed/`.
 
 ## Product changes
 
@@ -28,7 +28,7 @@ iframe comment product derived from Sodesu's interaction model.
   device-bound nickname-change cooldown.
 - Added strict `postMessage` origin checks for iframe integration.
 - Replaced product attribution with `Powered by SicSic`, while keeping a visible
-  `derived from BeiyanYunyi/Sodesu v0.5.2` upstream link.
+  `derived from BeiyanYunyi/Sodesu v0.5.2` original-project link.
 
 ## Build
 

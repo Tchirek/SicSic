@@ -9,8 +9,8 @@ C:\Users\Tchirek\Desktop\pics\DEVELOPER-HANDOFF-2026-06.md
 
 ## 部署边界
 
-- 本仓库是 SicSic：从 BeiyanYunyi/Sodesu v0.5.2 派生的 AGPL-3.0 项目，
-  但不再作为 GitHub fork 发布。
+- 本仓库是独立项目 SicSic；它包含来自 BeiyanYunyi/Sodesu v0.5.2 的代码与设计来源，
+  并按 AGPL-3.0 保留原作者署名和版权信息。
 - 必须保留原源码版权注释与 `LICENSE`。
 - `embed/` 是独立部署的评论产品，不打包进 NormalPics 主前端。
 - 线上地址：`https://comments.sicnu.pics.tchirek.top`。
@@ -60,7 +60,7 @@ COMMENT_IMG_SRC
 - 根评论排序：有赞优先、点赞数降序，其余按时间从新到旧。
 - 回复按时间从旧到新。
 - 底部显示 `Powered by SicSic · derived from BeiyanYunyi/Sodesu v0.5.2`，
-  SicSic 链接到当前项目，上游链接保留原作者存在感。
+  SicSic 链接到当前项目，Sodesu 链接保留原作者署名。
 
 ## 与父页面通信
 
