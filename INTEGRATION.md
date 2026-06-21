@@ -9,8 +9,8 @@ C:\Users\Tchirek\Desktop\pics\DEVELOPER-HANDOFF-2026-06.md
 
 ## 部署边界
 
-- 本仓库是独立项目 SicSic；它包含来自 BeiyanYunyi/Sodesu v0.5.2 的代码与设计来源，
-  并按 AGPL-3.0 保留原作者署名和版权信息。
+- SicSic 包含来自 BeiyanYunyi/Sodesu v0.5.2 的代码与设计来源，并按 AGPL-3.0
+  保留原作者署名和版权信息。
 - 必须保留原源码版权注释与 `LICENSE`。
 - `embed/` 是独立部署的评论产品，不打包进 NormalPics 主前端。
 - 线上地址：`https://comments.sicnu.pics.tchirek.top`。

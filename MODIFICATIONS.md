@@ -2,9 +2,9 @@
 
 Integration and maintenance details: [INTEGRATION.md](./INTEGRATION.md)
 
-SicSic is an independent AGPL iframe comment project. It includes code and ideas
-derived from BeiyanYunyi/Sodesu v0.5.2, with original copyright and license
-notices kept where required. The product entry point is `embed/`.
+SicSic is an AGPL iframe comment UI. It includes code and ideas derived from
+BeiyanYunyi/Sodesu v0.5.2, with original copyright and license notices kept
+where required. The product entry point is `embed/`.
 
 ## Product changes
 
