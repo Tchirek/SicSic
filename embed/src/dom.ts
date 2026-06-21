@@ -49,8 +49,7 @@ export function mountApp(app: HTMLElement, config: CommentUiConfig): CommentElem
     </section>
     <section class="comment-list" aria-live="polite"></section>
     <footer>
-      Powered by <a class="source-link" target="_blank" rel="noreferrer">SicSic</a>
-      · derived from <a class="upstream-link" target="_blank" rel="noreferrer">BeiyanYunyi/Sodesu v0.5.2</a>
+      Powered by <a class="source-link" target="_blank" rel="noreferrer">SicSic v0.1.0</a>
     </footer>
   `;
 
@@ -73,6 +72,5 @@ export function mountApp(app: HTMLElement, config: CommentUiConfig): CommentElem
   elements.commentTitle.textContent = config.title;
   elements.nickname.value = localStorage.getItem(config.nicknameStorageKey) || '';
   requireElement<HTMLAnchorElement>(app, '.source-link').href = config.sourceRepoUrl;
-  requireElement<HTMLAnchorElement>(app, '.upstream-link').href = config.upstreamRepoUrl;
   return elements;
 }

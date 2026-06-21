@@ -59,8 +59,7 @@ COMMENT_IMG_SRC
 - 不提供排序控件。
 - 根评论排序：有赞优先、点赞数降序，其余按时间从新到旧。
 - 回复按时间从旧到新。
-- 底部显示 `Powered by SicSic · derived from BeiyanYunyi/Sodesu v0.5.2`，
-  SicSic 链接到当前项目，Sodesu 链接保留原作者署名。
+- 底部显示 `Powered by SicSic v0.1.0`，链接到当前项目。
 
 ## 与父页面通信
 

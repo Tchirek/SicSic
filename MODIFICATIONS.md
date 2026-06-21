@@ -27,8 +27,7 @@ where required. The product entry point is `embed/`.
 - Added normalized operating-system labels and a privacy-preserving,
   device-bound nickname-change cooldown.
 - Added strict `postMessage` origin checks for iframe integration.
-- Replaced product attribution with `Powered by SicSic`, while keeping a visible
-  `derived from BeiyanYunyi/Sodesu v0.5.2` original-project link.
+- Replaced product attribution with `Powered by SicSic v0.1.0`.
 
 ## Build
 
