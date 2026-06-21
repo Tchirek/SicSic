@@ -253,18 +253,18 @@ input:focus, textarea:focus { border-color: var(--field-focus); }
 .comment {
   padding: 15px 0;
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr);
   gap: 10px;
 }
 .comment.reply {
   margin-left: 18px;
   padding: 12px 0 12px 12px;
   border-left: 1px solid var(--field-border);
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr);
 }
 .comment-avatar {
-  width: 32px;
-  height: 32px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -272,15 +272,15 @@ input:focus, textarea:focus { border-color: var(--field-focus); }
   color: hsla(var(--avatar-hue), 38%, var(--avatar-fg-lightness), var(--avatar-fg-alpha));
   background: hsla(var(--avatar-hue), 38%, var(--avatar-bg-lightness), var(--avatar-bg-alpha));
   border: 1px solid hsla(var(--avatar-hue), 48%, var(--avatar-border-lightness), var(--avatar-border-alpha));
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 620;
   line-height: 1;
   user-select: none;
 }
-.comment.reply .comment-avatar { width: 28px; height: 28px; font-size: 11px; }
+.comment.reply .comment-avatar { width: 36px; height: 36px; font-size: 14px; }
 .comment-main { min-width: 0; }
-.comment-head { min-height: 32px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px 9px; }
-.comment.reply .comment-head { min-height: 28px; }
+.comment-head { min-height: 42px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px 9px; }
+.comment.reply .comment-head { min-height: 36px; }
 .comment-head strong { font-size: 12px; font-weight: 560; }
 .skeleton-comment { pointer-events: none; }
 .skeleton {
@@ -302,8 +302,8 @@ input:focus, textarea:focus { border-color: var(--field-focus); }
   );
   animation: skeleton-glide 1.25s ease-in-out infinite;
 }
-.skeleton-avatar { width: 32px; height: 32px; border-radius: 50%; }
-.comment.reply .skeleton-avatar { width: 28px; height: 28px; }
+.skeleton-avatar { width: 42px; height: 42px; border-radius: 50%; }
+.comment.reply .skeleton-avatar { width: 36px; height: 36px; }
 .skeleton-name { width: 74px; height: 12px; }
 .skeleton-meta { width: 46px; height: 10px; opacity: 0.78; }
 .skeleton-line {
