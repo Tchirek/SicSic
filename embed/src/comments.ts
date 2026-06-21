@@ -1,12 +1,19 @@
 import type { CommentElements } from './dom';
 import type { CommentAppState, CommentItem } from './types';
+import { badgeSvg } from './badges';
 
 interface CommentRenderOptions {
   anonymousNickname: string;
   adminEnabled: boolean;
+  accountEnabled: boolean;
+  editingId: string;
   onReply: (item: CommentItem) => void;
   onLike: (item: CommentItem) => void;
   onDelete: (item: CommentItem) => void;
+  onEdit: (item: CommentItem) => void;
+  onEditSave: (item: CommentItem, content: string) => void;
+  onEditCancel: () => void;
+  onAvatarEdit: (item: CommentItem) => void;
 }
 
 export function commentNickname(value: string, anonymousNickname: string): string {
@@ -61,9 +68,27 @@ function createCommentNode(
 
   const avatar = document.createElement('div');
   avatar.className = 'comment-avatar';
-  avatar.textContent = nicknameInitial(displayName, options.anonymousNickname);
   avatar.style.setProperty('--avatar-hue', String(nicknameHue(displayName, options.anonymousNickname)));
-  avatar.setAttribute('aria-hidden', 'true');
+  const initial = document.createElement('span');
+  initial.className = 'avatar-initial';
+  initial.textContent = nicknameInitial(displayName, options.anonymousNickname);
+  avatar.append(initial);
+  if (item.authorBadge && item.authorBadge !== 'none') {
+    const badge = document.createElement('span');
+    badge.className = 'avatar-badge';
+    badge.innerHTML = badgeSvg(item.authorBadge, 14);
+    avatar.append(badge);
+  }
+  const ownerControls = options.accountEnabled && Boolean(item.ownedByMe);
+  if (ownerControls) {
+    avatar.classList.add('editable');
+    avatar.title = '点按修改标记';
+    avatar.setAttribute('role', 'button');
+    avatar.tabIndex = 0;
+    avatar.addEventListener('click', () => options.onAvatarEdit(item));
+  } else {
+    avatar.setAttribute('aria-hidden', 'true');
+  }
 
   const main = document.createElement('div');
   main.className = 'comment-main';
@@ -77,8 +102,34 @@ function createCommentNode(
   time.textContent = formatTime(item.createdAt);
   head.append(name, time);
 
+  if (options.editingId === item.id) {
+    const editor = document.createElement('div');
+    editor.className = 'comment-edit';
+    const textarea = document.createElement('textarea');
+    textarea.maxLength = 2000;
+    textarea.value = item.content;
+    const editActions = document.createElement('div');
+    editActions.className = 'comment-edit-actions';
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.textContent = '保存';
+    save.addEventListener('click', () => options.onEditSave(item, textarea.value));
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = '取消';
+    cancel.addEventListener('click', () => options.onEditCancel());
+    editActions.append(save, cancel);
+    editor.append(textarea, editActions);
+    main.append(head, editor);
+    article.append(avatar, main);
+    return article;
+  }
+
   const body = document.createElement('div');
   body.className = 'markdown';
+  // Contract: item.html is the ONLY trusted boundary's output. The backend renders
+  // Markdown with raw HTML disabled and rejects non-https image URLs (see the worker's
+  // comments route). The client never sanitizes server HTML and must not relax this.
   body.innerHTML = item.html;
 
   const actions = document.createElement('div');
@@ -99,7 +150,21 @@ function createCommentNode(
   likeButton.addEventListener('click', () => options.onLike(item));
   actions.append(replyButton, likeButton);
 
-  if (options.adminEnabled) {
+  if (ownerControls) {
+    if (item.editable) {
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.textContent = '编辑';
+      editButton.addEventListener('click', () => options.onEdit(item));
+      actions.append(editButton);
+    }
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'danger';
+    deleteButton.textContent = '删除';
+    deleteButton.addEventListener('click', () => options.onDelete(item));
+    actions.append(deleteButton);
+  } else if (options.adminEnabled) {
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'danger';

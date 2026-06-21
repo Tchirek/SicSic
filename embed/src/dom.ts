@@ -12,6 +12,8 @@ export interface CommentElements {
   submit: HTMLButtonElement;
   previewToggle: HTMLButtonElement;
   closeButton: HTMLButtonElement;
+  accountButton: HTMLButtonElement;
+  composerIdentity: HTMLElement;
 }
 
 function requireElement<T extends Element>(root: ParentNode, selector: string): T {
@@ -25,11 +27,15 @@ export function mountApp(app: HTMLElement, config: CommentUiConfig): CommentElem
     <header>
       <strong class="comment-title"></strong>
       <div class="header-actions">
+        <button class="icon-button account" type="button" aria-label="账户">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12.8a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 1.6c-3.3 0-8 1.7-8 5v1.2h16v-1.2c0-3.3-4.7-5-8-5Z"/></svg>
+        </button>
         <button class="icon-button close" type="button" aria-label="关闭">×</button>
       </div>
     </header>
     <section class="composer">
       <input class="nickname" maxlength="32" autocomplete="nickname" placeholder="昵称">
+      <div class="composer-identity" hidden></div>
       <div class="reply-target" hidden></div>
       <div class="editor-surface">
         <textarea maxlength="2000" placeholder="写下评论，支持 Markdown"></textarea>
@@ -42,7 +48,10 @@ export function mountApp(app: HTMLElement, config: CommentUiConfig): CommentElem
       </div>
     </section>
     <section class="comment-list" aria-live="polite"></section>
-    <footer>Powered by <a class="source-link" target="_blank" rel="noreferrer">Sodesu</a> v0.5.2</footer>
+    <footer>
+      Powered by <a class="source-link" target="_blank" rel="noreferrer">SicSic</a>
+      · derived from <a class="upstream-link" target="_blank" rel="noreferrer">BeiyanYunyi/Sodesu v0.5.2</a>
+    </footer>
   `;
 
   const elements: CommentElements = {
@@ -56,12 +65,14 @@ export function mountApp(app: HTMLElement, config: CommentUiConfig): CommentElem
     list: requireElement(app, '.comment-list'),
     submit: requireElement(app, '.submit'),
     previewToggle: requireElement(app, '.preview-toggle'),
-    closeButton: requireElement(app, '.close')
+    closeButton: requireElement(app, '.close'),
+    accountButton: requireElement(app, '.account'),
+    composerIdentity: requireElement(app, '.composer-identity')
   };
 
   elements.commentTitle.textContent = config.title;
   elements.nickname.value = localStorage.getItem(config.nicknameStorageKey) || '';
   requireElement<HTMLAnchorElement>(app, '.source-link').href = config.sourceRepoUrl;
+  requireElement<HTMLAnchorElement>(app, '.upstream-link').href = config.upstreamRepoUrl;
   return elements;
 }
-

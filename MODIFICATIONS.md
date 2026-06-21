@@ -1,10 +1,10 @@
-# NormalPics Comment UI
+# SicSic Comment UI
 
 Integration and maintenance details: [INTEGRATION.md](./INTEGRATION.md)
 
-This public fork retains the complete Sodesu v0.5.2 source tree and its
-AGPL-3.0 license. The `embed/` directory contains the focused NormalPics
-comment product derived from the interaction model of Sodesu.
+SicSic retains the complete BeiyanYunyi/Sodesu v0.5.2 source tree and its
+AGPL-3.0 license for provenance. The `embed/` directory contains the focused
+iframe comment product derived from Sodesu's interaction model.
 
 ## Product changes
 
@@ -13,8 +13,11 @@ comment product derived from the interaction model of Sodesu.
   operating-system detection, DOM mounting, and comment rendering.
 - Moved deployment-specific origins and CSP values into Vite/Wrangler
   configuration instead of embedding them in the application logic.
-- Removed login, profile, visitor editing, and attachment upload from the
-  embedded product.
+- Removed attachment upload; kept anonymous commenting as the first-class path.
+- Re-introduced accounts as an opt-in backend capability (`features.auth`): email +
+  password / Google login, profile (change password, rebind email), per-user avatar
+  badge, and owner edit-once / own-delete. The account UI only renders when the active
+  backend implements `/api/auth/*`, so anonymous-only hosts surface no login entry.
 - Preserved Markdown preview, two-level replies, likes, and administrator
   deletion.
 - Replaced visible sorting controls with a fixed ranking that prioritizes
@@ -24,8 +27,8 @@ comment product derived from the interaction model of Sodesu.
 - Added normalized operating-system labels and a privacy-preserving,
   device-bound nickname-change cooldown.
 - Added strict `postMessage` origin checks for iframe integration.
-- Replaced product attribution with an underlined `Powered by Sodesu v0.5.2`
-  link to this public fork.
+- Replaced product attribution with `Powered by SicSic`, while keeping a visible
+  `derived from BeiyanYunyi/Sodesu v0.5.2` upstream link.
 
 ## Build
 
@@ -35,5 +38,6 @@ npm install
 npm run build
 ```
 
-Production configuration lives in `embed/.env.production` and
-`embed/wrangler.toml`. See `INTEGRATION.md` before changing domains or CSP.
+Production defaults live in `embed/src/config.ts` presets and Worker security
+headers live in `embed/wrangler.toml`. Do not commit real `.env*` files; use
+`embed/.env.example` for local overrides.

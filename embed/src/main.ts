@@ -6,6 +6,7 @@ import { mountApp } from './dom';
 import { renderSafeMarkdown } from './markdown';
 import { installPanelPull } from './panelPull';
 import { createParentBridge } from './parentBridge';
+import { createAuth, type Auth } from './auth';
 import type { CommentAppState, CommentItem, ParentMessage } from './types';
 
 const appRoot = document.getElementById('app');
@@ -14,12 +15,16 @@ if (!appRoot) throw new Error('missing_app_root');
 const config = readConfig();
 const elements = mountApp(appRoot, config);
 const bridge = createParentBridge(config);
+let auth: Auth;
 const api = createCommentApi(config, {
   viewerId: () => state.viewerId,
-  adminToken: () => state.adminToken
+  adminToken: () => state.adminToken,
+  sessionToken: () => (auth ? auth.token() : '')
 });
 const panelPull = installPanelPull(elements.app, bridge);
 const pendingLikes = new Set<string>();
+let editingId = '';
+const authEnabled = config.features.auth;
 
 const state: CommentAppState = {
   imageId: '',
@@ -33,6 +38,12 @@ const state: CommentAppState = {
   loadError: '',
   previewing: false
 };
+
+function applyTheme(theme: unknown): void {
+  if (theme === 'light' || theme === 'dark') {
+    document.documentElement.dataset.theme = theme;
+  }
+}
 
 function readCommentedImages(): Set<string> {
   try {
@@ -82,10 +93,53 @@ function render(): void {
   renderComments(elements, state, {
     anonymousNickname: config.anonymousNickname,
     adminEnabled: Boolean(state.adminToken),
+    accountEnabled: authEnabled,
+    editingId,
     onReply: setReplyTarget,
     onLike: (item) => void toggleLike(item),
-    onDelete: (item) => void deleteComment(item)
+    onDelete: (item) => void deleteComment(item),
+    onEdit: (item) => {
+      editingId = item.id;
+      render();
+    },
+    onEditCancel: () => {
+      editingId = '';
+      render();
+    },
+    onEditSave: (item, content) => void saveEdit(item, content),
+    onAvatarEdit: () => {
+      if (authEnabled) auth.open();
+    }
   });
+}
+
+async function saveEdit(item: CommentItem, content: string): Promise<void> {
+  const next = content.trim();
+  if (!next) return;
+  try {
+    await api.editContent(item.id, next);
+    editingId = '';
+    await load();
+  } catch (error) {
+    elements.status.textContent =
+      error instanceof ApiError && error.message === 'edit_limit' ? '每条评论仅可编辑一次' : '编辑失败';
+  }
+}
+
+function onAccountChange(): void {
+  const account = auth.account();
+  if (account) {
+    elements.nickname.hidden = true;
+    elements.composerIdentity.hidden = false;
+    elements.composerIdentity.textContent = `以 ${account.displayName} 发表`;
+    elements.accountButton.classList.add('signed-in');
+  } else {
+    elements.nickname.hidden = false;
+    elements.composerIdentity.hidden = true;
+    elements.accountButton.classList.remove('signed-in');
+  }
+  editingId = '';
+  void load();
 }
 
 async function load(): Promise<void> {
@@ -130,8 +184,9 @@ async function load(): Promise<void> {
 }
 
 async function publish(): Promise<void> {
-  const rawName = elements.nickname.value.replace(/\s+/g, ' ').trim();
-  const name = rawName || config.anonymousNickname;
+  const account = authEnabled ? auth.account() : null;
+  const rawName = account ? '' : elements.nickname.value.replace(/\s+/g, ' ').trim();
+  const name = account ? account.displayName : rawName || config.anonymousNickname;
   const content = elements.textarea.value.trim();
   if (!content || !state.imageId || !state.viewerId) return;
 
@@ -147,8 +202,10 @@ async function publish(): Promise<void> {
     });
     markLocalCommentedImage(state.imageId);
 
-    if (rawName) localStorage.setItem(config.nicknameStorageKey, rawName);
-    else localStorage.removeItem(config.nicknameStorageKey);
+    if (!account) {
+      if (rawName) localStorage.setItem(config.nicknameStorageKey, rawName);
+      else localStorage.removeItem(config.nicknameStorageKey);
+    }
     elements.textarea.value = '';
     setReplyTarget(null);
     setPreview(false);
@@ -189,14 +246,21 @@ async function toggleLike(item: CommentItem): Promise<void> {
 }
 
 async function deleteComment(item: CommentItem): Promise<void> {
-  if (!state.adminToken) return;
+  const owner = authEnabled && Boolean(item.ownedByMe);
+  if (!owner && !state.adminToken) return;
+  if (!window.confirm('删除这条评论？')) return;
   try {
-    await api.delete(item.id);
+    if (owner) await api.deleteOwn(item.id);
+    else await api.delete(item.id);
     await load();
   } catch {
-    state.adminToken = '';
-    render();
-    elements.status.textContent = '验证已失效';
+    if (owner) {
+      elements.status.textContent = '删除失败';
+    } else {
+      state.adminToken = '';
+      render();
+      elements.status.textContent = '验证已失效';
+    }
   }
 }
 
@@ -221,6 +285,11 @@ window.addEventListener('message', (event) => {
       resetForImage(data.imageId);
       void load();
     }
+    return;
+  }
+
+  if (data.type === 'normalpics:theme') {
+    applyTheme(data.theme);
     return;
   }
 
@@ -270,5 +339,22 @@ elements.submit.addEventListener('click', () => void publish());
 elements.textarea.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') void publish();
 });
+
+if (authEnabled) {
+  auth = createAuth({ config, api, onChange: onAccountChange });
+  elements.accountButton.addEventListener('click', () => auth.open());
+  void auth.refresh().then(() => {
+    const account = auth.account();
+    if (account) {
+      elements.nickname.hidden = true;
+      elements.composerIdentity.hidden = false;
+      elements.composerIdentity.textContent = `以 ${account.displayName} 发表`;
+      elements.accountButton.classList.add('signed-in');
+      if (state.imageId) void load();
+    }
+  });
+} else {
+  elements.accountButton.hidden = true;
+}
 
 bridge.post({ type: 'comment-ui:ready' });

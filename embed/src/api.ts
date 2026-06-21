@@ -1,5 +1,5 @@
 import type { CommentUiConfig } from './config';
-import type { CommentItem } from './types';
+import type { AccountUser, BadgeKind, CommentItem } from './types';
 
 export class ApiError extends Error {
   readonly retryAfterMs: number | null;
@@ -14,6 +14,7 @@ export class ApiError extends Error {
 interface ApiContext {
   viewerId: () => string;
   adminToken: () => string;
+  sessionToken: () => string;
 }
 
 interface CommentPublishPayload {
@@ -39,14 +40,29 @@ async function parseJson<T>(response: Response): Promise<T & { error?: string; r
 }
 
 export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
+  /** Session bearer for signed-in actions; falls back to the admin token only when asked. */
   function headers(includeAdmin = false): HeadersInit {
     const result: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Viewer-Id': context.viewerId()
     };
-    const adminToken = context.adminToken();
-    if (includeAdmin && adminToken) result.Authorization = `Bearer ${adminToken}`;
+    const session = context.sessionToken();
+    if (session) result.Authorization = `Bearer ${session}`;
+    else if (includeAdmin && context.adminToken()) result.Authorization = `Bearer ${context.adminToken()}`;
     return result;
+  }
+
+  function adminHeaders(): HeadersInit {
+    const result: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Viewer-Id': context.viewerId()
+    };
+    if (context.adminToken()) result.Authorization = `Bearer ${context.adminToken()}`;
+    return result;
+  }
+
+  function authHeaders(token: string): HeadersInit {
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
   }
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -56,7 +72,54 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
     return body;
   }
 
+  const auth = {
+    registerStart(payload: { email: string; username: string; password: string }): Promise<unknown> {
+      return request('/api/auth/register/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    },
+    registerVerify(payload: { email: string; code: string }): Promise<{ token: string; user: AccountUser }> {
+      return request('/api/auth/register/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    },
+    login(payload: { identifier: string; password: string }): Promise<{ token: string; user: AccountUser }> {
+      return request('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    },
+    me(token: string): Promise<{ user: AccountUser }> {
+      return request('/api/auth/me', { headers: authHeaders(token) });
+    },
+    logout(token: string): Promise<unknown> {
+      return request('/api/auth/logout', { method: 'POST', headers: authHeaders(token), body: '{}' });
+    },
+    setPassword(token: string, payload: { currentPassword?: string; newPassword: string }): Promise<unknown> {
+      return request('/api/auth/password', { method: 'POST', headers: authHeaders(token), body: JSON.stringify(payload) });
+    },
+    emailStart(token: string, newEmail: string): Promise<unknown> {
+      return request('/api/auth/email/start', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ newEmail }) });
+    },
+    emailVerify(token: string, code: string): Promise<{ user: AccountUser }> {
+      return request('/api/auth/email/verify', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ code }) });
+    },
+    setBadge(token: string, badge: BadgeKind): Promise<{ badge: BadgeKind }> {
+      return request('/api/auth/badge', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ badge }) });
+    },
+    googleStartUrl(origin: string): string {
+      return joinUrl(config.apiOrigin, `/api/auth/google/start?origin=${encodeURIComponent(origin)}`);
+    }
+  };
+
   return {
+    auth,
+
     list(imageId: string): Promise<{ items: CommentItem[]; commentedByMe?: boolean }> {
       return request<{ items: CommentItem[]; commentedByMe?: boolean }>(
         `/api/comment?imageId=${encodeURIComponent(imageId)}`,
@@ -72,6 +135,14 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
       });
     },
 
+    editContent(commentId: string, content: string): Promise<CommentItem> {
+      return request<CommentItem>(`/api/comment/${encodeURIComponent(commentId)}/content`, {
+        method: 'PUT',
+        headers: headers(),
+        body: JSON.stringify({ content })
+      });
+    },
+
     setLike(commentId: string, liked: boolean): Promise<{ likedByMe: boolean; likeCount: number }> {
       return request<{ likedByMe: boolean; likeCount: number }>(`/api/comment/${encodeURIComponent(commentId)}`, {
         method: 'PUT',
@@ -80,10 +151,17 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
       });
     },
 
+    deleteOwn(commentId: string): Promise<unknown> {
+      return request(`/api/comment/${encodeURIComponent(commentId)}`, {
+        method: 'DELETE',
+        headers: headers()
+      });
+    },
+
     delete(commentId: string): Promise<unknown> {
       return request(`/api/comment/${encodeURIComponent(commentId)}`, {
         method: 'DELETE',
-        headers: headers(true)
+        headers: adminHeaders()
       });
     }
   };

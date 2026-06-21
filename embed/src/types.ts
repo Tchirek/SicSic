@@ -1,3 +1,5 @@
+export type BadgeKind = 'none' | 'cockade' | 'seal';
+
 export interface CommentItem {
   id: string;
   imageId: string;
@@ -9,6 +11,21 @@ export interface CommentItem {
   createdAt: number;
   likeCount: number;
   likedByMe: boolean;
+  verified?: boolean;
+  authorBadge?: BadgeKind | null;
+  ownedByMe?: boolean;
+  editable?: boolean;
+}
+
+export interface AccountUser {
+  id: string;
+  username: string | null;
+  email: string | null;
+  emailVerified: boolean;
+  badge: BadgeKind;
+  displayName: string;
+  hasPassword: boolean;
+  googleLinked: boolean;
 }
 
 export interface CommentAppState {
@@ -29,6 +46,7 @@ export interface ParentMessage {
   imageId?: string;
   viewerId?: string;
   token?: string;
+  theme?: 'light' | 'dark';
 }
 
 export type PullPhase = 'start' | 'move' | 'end' | 'cancel';

@@ -1,6 +1,6 @@
-# NormalPics Comment UI Integration
+# SicSic Comment UI Integration
 
-本文记录 `comment-ui/embed` 的集成边界、配置入口和维护约束。产品修改总览见
+本文记录 `SicSic/embed` 的集成边界、配置入口和维护约束。产品修改总览见
 [`MODIFICATIONS.md`](./MODIFICATIONS.md)，NormalPics 全系统交接见：
 
 ```text
@@ -9,7 +9,8 @@ C:\Users\Tchirek\Desktop\pics\DEVELOPER-HANDOFF-2026-06.md
 
 ## 部署边界
 
-- 本仓库是公开的 Sodesu v0.5.2 AGPL-3.0 fork。
+- 本仓库是 SicSic：从 BeiyanYunyi/Sodesu v0.5.2 派生的 AGPL-3.0 项目，
+  但不再作为 GitHub fork 发布。
 - 必须保留原源码版权注释与 `LICENSE`。
 - `embed/` 是独立部署的评论产品，不打包进 NormalPics 主前端。
 - 线上地址：`https://comments.sicnu.pics.tchirek.top`。
@@ -17,12 +18,14 @@ C:\Users\Tchirek\Desktop\pics\DEVELOPER-HANDOFF-2026-06.md
 
 ## 配置入口
 
-前端构建通过 Vite 公开变量配置，默认生产值位于 `embed/.env.production`：
+前端默认生产值在 `embed/src/config.ts` 的 preset 中；本地覆盖可参考
+`embed/.env.example`：
 
 ```text
 VITE_COMMENT_API_ORIGIN
 VITE_ALLOWED_PARENT_ORIGINS
 VITE_SOURCE_REPO_URL
+VITE_UPSTREAM_REPO_URL
 VITE_STORAGE_NAMESPACE
 VITE_COMMENT_TITLE
 VITE_ANONYMOUS_NICKNAME
@@ -43,7 +46,10 @@ COMMENT_IMG_SRC
 
 ## 产品行为
 
-- 无登录、资料页、访客编辑、评论附件上传。
+- 无评论附件上传；匿名评论是一等公民。
+- 账户为**可选的后端能力**（`features.auth`，见 `embed/src/config.ts` 的 `AUTH_BACKENDS`）：
+  仅当后端实现 `/api/auth/*` 时才显示账户入口（登录/注册、邮箱或 Google、改密/改绑邮箱、
+  头像徽章、本人编辑一次/删除）。后端不支持账户的宿主（如博客 i.am.tchirek.top）不会暴露登录入口。
 - 保留 Markdown/GFM、预览、两级回复、点赞、管理员删除。
 - 昵称保存在评论站自身 `localStorage`。
 - 未填写昵称时允许发布，展示为 `Anonymous`。
@@ -53,7 +59,8 @@ COMMENT_IMG_SRC
 - 不提供排序控件。
 - 根评论排序：有赞优先、点赞数降序，其余按时间从新到旧。
 - 回复按时间从旧到新。
-- 底部显示 `Powered by Sodesu v0.5.2`，其中 `Sodesu` 链接到公开 fork。
+- 底部显示 `Powered by SicSic · derived from BeiyanYunyi/Sodesu v0.5.2`，
+  SicSic 链接到当前项目，上游链接保留原作者存在感。
 
 ## 与父页面通信
 
@@ -89,7 +96,7 @@ allow-popups
 allow-popups-to-escape-sandbox
 ```
 
-后两项用于保证 `Powered by Sodesu v0.5.2` 中的仓库链接能正常打开。
+后两项用于保证底部 SicSic / Sodesu 仓库链接能正常打开。
 
 ## 移动端拖拽
 
@@ -127,4 +134,4 @@ cd C:\Users\Tchirek\Desktop\pics\packages\frontend
 node scripts/test-selection-print-ui.mjs
 ```
 
-该测试覆盖 iframe sandbox、Sodesu 链接、编辑/预览尺寸、评论面板打开、来源校验、桌面交互、移动拖拽与圆角裁剪。
+该测试覆盖 iframe sandbox、SicSic / Sodesu 链接、编辑/预览尺寸、评论面板打开、来源校验、桌面交互、移动拖拽与圆角裁剪。
