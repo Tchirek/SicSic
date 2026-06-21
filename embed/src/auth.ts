@@ -55,6 +55,7 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
   let account: AccountUser | null = null;
   let overlay: HTMLElement | null = null;
   let googlePopup: Window | null = null;
+  let authError: ((message: string) => void) | null = null;
 
   function persist(next: string): void {
     token = next;
@@ -124,8 +125,19 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
     return h('input', { type, placeholder, ...attrs });
   }
 
+  function googleIcon(): HTMLElement {
+    return h('span', { class: 'auth-google-mark', 'aria-hidden': 'true', html: [
+      '<svg viewBox="0 0 18 18">',
+      '<path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.86 2.7-6.62Z"/>',
+      '<path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.58-5.05-3.72H.96v2.33A9 9 0 0 0 9 18Z"/>',
+      '<path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.66 9c0-.59.1-1.16.29-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.82.96 4.03l2.99-2.33Z"/>',
+      '<path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A8.65 8.65 0 0 0 9 0 9 9 0 0 0 .96 4.97L3.95 7.3C4.66 5.16 6.65 3.58 9 3.58Z"/>',
+      '</svg>'
+    ].join('') });
+  }
+
   function googleButton(): HTMLButtonElement {
-    const btn = h('button', { class: 'auth-google', type: 'button' }, ['使用 Google 登录']);
+    const btn = h('button', { class: 'auth-google', type: 'button' }, [googleIcon(), h('span', {}, ['使用 Google 登录'])]);
     btn.addEventListener('click', openGoogle);
     return btn;
   }
@@ -148,6 +160,10 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
     if (!data || (data.type !== 'sicsic-auth' && data.type !== 'sodesu-auth')) return;
     googlePopup?.close();
     googlePopup = null;
+    if (data.error) {
+      authError?.(ERROR_TEXT[data.error] || 'Google 登录失败，请重试');
+      return;
+    }
     if (data.token) {
       persist(data.token);
       void refresh().then(() => {
@@ -163,6 +179,7 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
 
   function showLogin(): void {
     const { root, body } = card('登录');
+    root.classList.add('auth-entry-card');
     const error = h('p', { class: 'auth-error', role: 'alert' });
     const tabs = h('div', { class: 'auth-tabs' });
     const loginTab = h('button', { class: 'auth-tab active', type: 'button' }, ['登录']);
@@ -175,6 +192,7 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
     const showError = (message: string): void => {
       error.textContent = message;
     };
+    authError = showError;
 
     const renderLogin = (): void => {
       loginTab.classList.add('active');
@@ -183,6 +201,8 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
       const identifier = input('text', '用户名或邮箱', { autocomplete: 'username' });
       const password = input('password', '密码', { autocomplete: 'current-password' });
       const submit = h('button', { class: 'auth-submit', type: 'button' }, ['登录']);
+      const reset = h('button', { class: 'auth-text auth-reset', type: 'button' }, ['忘记密码？']);
+      reset.addEventListener('click', renderResetStart);
       submit.addEventListener('click', async () => {
         submit.disabled = true;
         showError('');
@@ -195,7 +215,7 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
           submit.disabled = false;
         }
       });
-      pane.replaceChildren(field('账号', identifier), field('密码', password), submit, divider(), googleButton());
+      pane.replaceChildren(field('账号', identifier), field('密码', password), h('div', { class: 'auth-row' }, [reset]), submit, divider(), googleButton());
     };
 
     const renderRegister = (): void => {
@@ -222,7 +242,7 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
           submit.disabled = false;
         }
       });
-      pane.replaceChildren(field('邮箱', email), field('用户名', username), field('密码', password), submit, divider(), googleButton());
+      pane.replaceChildren(field('邮箱', email), field('用户名', username), field('密码', password), submit);
     };
 
     const renderVerify = (email: string): void => {
@@ -245,6 +265,53 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
         }
       });
       pane.replaceChildren(hint, field('验证码', code), submit, back);
+      code.focus();
+    };
+
+    const renderResetStart = (): void => {
+      loginTab.classList.add('active');
+      registerTab.classList.remove('active');
+      showError('');
+      const email = input('email', 'you@example.com', { autocomplete: 'email' });
+      const submit = h('button', { class: 'auth-submit', type: 'button' }, ['发送验证码']);
+      const back = h('button', { class: 'auth-text', type: 'button' }, ['返回登录']);
+      back.addEventListener('click', renderLogin);
+      submit.addEventListener('click', async () => {
+        submit.disabled = true;
+        showError('');
+        try {
+          await api.auth.resetStart(email.value.trim());
+          renderResetVerify(email.value.trim());
+        } catch (err) {
+          showError(messageFor(err));
+        } finally {
+          submit.disabled = false;
+        }
+      });
+      pane.replaceChildren(h('p', { class: 'auth-hint' }, ['输入注册邮箱，验证码将发送到该邮箱。']), field('邮箱', email), submit, back);
+    };
+
+    const renderResetVerify = (email: string): void => {
+      showError('');
+      const hint = h('p', { class: 'auth-hint' }, [`验证码已发送至 ${email}，10 分钟内有效。`]);
+      const code = input('text', '6 位验证码', { inputmode: 'numeric', maxlength: '6', class: 'auth-code' });
+      const password = input('password', '新密码（至少 8 位）', { autocomplete: 'new-password' });
+      const submit = h('button', { class: 'auth-submit', type: 'button' }, ['重置并登录']);
+      const back = h('button', { class: 'auth-text', type: 'button' }, ['返回修改']);
+      back.addEventListener('click', renderResetStart);
+      submit.addEventListener('click', async () => {
+        submit.disabled = true;
+        showError('');
+        try {
+          const { token: t, user } = await api.auth.resetVerify({ email, code: code.value.trim(), password: password.value });
+          applySession(t, user);
+        } catch (err) {
+          showError(messageFor(err));
+        } finally {
+          submit.disabled = false;
+        }
+      });
+      pane.replaceChildren(hint, field('验证码', code), field('新密码', password), submit, back);
       code.focus();
     };
 

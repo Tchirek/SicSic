@@ -94,6 +94,20 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
         body: JSON.stringify(payload)
       });
     },
+    resetStart(email: string): Promise<unknown> {
+      return request('/api/auth/reset/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+    },
+    resetVerify(payload: { email: string; code: string; password: string }): Promise<{ token: string; user: AccountUser }> {
+      return request('/api/auth/reset/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    },
     me(token: string): Promise<{ user: AccountUser }> {
       return request('/api/auth/me', { headers: authHeaders(token) });
     },
