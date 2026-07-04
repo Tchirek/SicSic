@@ -239,6 +239,7 @@ async function overlayProfiles(imageId: string): Promise<void> {
         changed = true;
       }
     }
+    let commentsChanged = false;
     for (const item of state.comments) {
       const fresh = item.authorId ? profiles[item.authorId] : undefined;
       if (!fresh) continue;
@@ -247,9 +248,10 @@ async function overlayProfiles(imageId: string): Promise<void> {
         item.nickname = fresh.displayName;
         item.authorBadge = badge;
         item.authorAvatar = fresh.avatar;
+        commentsChanged = true;
       }
     }
-    if (changed) render();
+    if (changed || commentsChanged) render();
   } catch {
     /* central unreachable — the stored snapshots remain */
   }

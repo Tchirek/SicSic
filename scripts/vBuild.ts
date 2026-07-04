@@ -63,7 +63,8 @@ const p3 = build({
 
 await Promise.all([p0, p1, p2, p3]);
 
-const file = await readFile('dist/sodesu-comment.css', 'utf-8');
+const file = await readFile('dist/sodesu.solid.css', 'utf-8');
+await writeFile('dist/sodesu-comment.css', file);
 const classes: string[] = [];
 transform({
   code: new TextEncoder().encode(file),
