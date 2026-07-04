@@ -12,9 +12,25 @@ export interface CommentItem {
   likeCount: number;
   likedByMe: boolean;
   verified?: boolean;
+  /** Central-account id of the author; used to overlay live profile data. */
+  authorId?: string | null;
+  /** Whitelisted OS label the commenter chose to disclose (e.g. "Windows"). */
+  osLabel?: string | null;
   authorBadge?: BadgeKind | null;
+  authorAvatar?: string | null;
   ownedByMe?: boolean;
   editable?: boolean;
+}
+
+/** Public profile data served by the central `/api/auth/profiles` endpoint. */
+export interface PublicProfile {
+  username: string | null;
+  displayName: string;
+  badge: BadgeKind | string;
+  avatar: string | null;
+  bio: string | null;
+  website: string | null;
+  email: string | null;
 }
 
 export interface AccountUser {
@@ -26,6 +42,12 @@ export interface AccountUser {
   displayName: string;
   hasPassword: boolean;
   googleLinked: boolean;
+  avatar: string | null;
+  bio: string | null;
+  showBio: boolean;
+  website: string | null;
+  publicEmailMode: 'none' | 'login' | 'custom';
+  publicEmail: string | null;
 }
 
 export interface CommentAppState {
@@ -58,9 +80,24 @@ export interface PullMessage {
   velocityY?: number;
 }
 
+export interface ResizeMessage {
+  type: 'comment-ui:resize';
+  height: number;
+}
+
+/** Ask the host page to scroll a freshly posted comment into view (centred). */
+export interface ScrollMessage {
+  type: 'comment-ui:scroll';
+  /** Comment top, in iframe-document coordinates. */
+  top: number;
+  height: number;
+}
+
 export type ParentOutboundMessage =
   | { type: 'comment-ui:ready' }
   | { type: 'comment-ui:loaded'; imageId: string; commentCount: number; commentedByMe?: boolean }
   | { type: 'comment-ui:close' }
   | { type: 'comment-ui:request-admin' }
+  | ResizeMessage
+  | ScrollMessage
   | PullMessage;

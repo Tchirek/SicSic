@@ -27,7 +27,11 @@ const ERROR_TEXT: Record<string, string> = {
   email_send_failed: '验证邮件发送失败，请稍后再试',
   rate_limited: '操作过于频繁，请稍后再试',
   oauth_failed: 'Google 登录失败，请重试',
-  unauthorized: '登录已失效，请重新登录'
+  unauthorized: '登录已失效，请重新登录',
+  invalid_display_name: '用户名最多 32 个字符',
+  invalid_bio: '简介最多 50 个字符',
+  invalid_website: '网址需以 http(s):// 开头',
+  invalid_public_email: '公开邮箱格式不正确'
 };
 
 function messageFor(error: unknown): string {
@@ -50,8 +54,50 @@ function h<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+/** Decode, downscale to a square-ish max edge, and re-encode (WebP, JPEG fallback). */
+async function compressImage(file: Blob, max = 256, quality = 0.85): Promise<Blob> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
+  } catch {
+    bitmap = await createImageBitmap(file);
+  }
+  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    bitmap.close();
+    throw new Error('canvas_unavailable');
+  }
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close();
+  const webp = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
+  if (webp) return webp;
+  return await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('encode_failed'))), 'image/jpeg', quality)
+  );
+}
+
 export function createAuth({ config, api, onChange }: AuthOptions) {
   let token = localStorage.getItem(config.sessionStorageKey) || '';
+  // One-time migration from the old per-preset key, so logins from before the
+  // shared (cross-site) session key survive the upgrade.
+  if (!token && config.legacySessionStorageKey && config.legacySessionStorageKey !== config.sessionStorageKey) {
+    const legacy = localStorage.getItem(config.legacySessionStorageKey) || '';
+    if (legacy) {
+      token = legacy;
+      try {
+        localStorage.setItem(config.sessionStorageKey, legacy);
+        localStorage.removeItem(config.legacySessionStorageKey);
+      } catch {
+        /* storage full/blocked — keep the in-memory token */
+      }
+    }
+  }
   let account: AccountUser | null = null;
   let overlay: HTMLElement | null = null;
   let googlePopup: Window | null = null;
@@ -60,8 +106,13 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
 
   function persist(next: string): void {
     token = next;
-    if (next) localStorage.setItem(config.sessionStorageKey, next);
-    else localStorage.removeItem(config.sessionStorageKey);
+    try {
+      if (next) localStorage.setItem(config.sessionStorageKey, next);
+      else localStorage.removeItem(config.sessionStorageKey);
+    } catch {
+      /* storage full/blocked (e.g. private mode) — the in-memory token still
+       * drives this session; it just won't persist across reloads. */
+    }
   }
 
   function applySession(nextToken: string, user: AccountUser): void {
@@ -120,6 +171,10 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
 
   function field(label: string, input: HTMLInputElement): HTMLElement {
     return h('label', { class: 'auth-field' }, [h('span', {}, [label]), input]);
+  }
+
+  function sectionSummary(text: string): HTMLElement {
+    return h('summary', {}, [h('span', { class: 'auth-section-title' }, [text])]);
   }
 
   function input(type: string, placeholder: string, attrs: Record<string, string> = {}): HTMLInputElement {
@@ -196,15 +251,16 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
     const top = window.screen.height / 2 - height / 2;
     const state = crypto.randomUUID();
     stopGooglePoll();
+    // window.open can return null (opener severed by COOP / sandbox / cross-origin)
+    // even when the popup actually opens. So we never treat null as failure: the
+    // /api/auth/google/result poll is the source of truth and reports a timeout if
+    // nothing comes back. (Hard-failing on null here previously skipped the poll, so
+    // a successful Google login was never collected.)
     googlePopup = window.open(
       api.auth.googleStartUrl(window.location.origin, state),
       'sicsic-google',
       `width=${width},height=${height},left=${left},top=${top}`
     );
-    if (!googlePopup) {
-      authError?.('无法打开 Google 登录窗口');
-      return;
-    }
     pollGoogle(state);
   }
 
@@ -377,10 +433,124 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
       error.textContent = m;
     };
 
-    const idLine = h('div', { class: 'auth-id' }, [
-      h('strong', {}, [account.displayName]),
-      account.email ? h('span', {}, [account.email]) : h('span', { class: 'auth-muted' }, ['未绑定邮箱'])
-    ]);
+    const idLine = h('div', { class: 'auth-id' });
+    const emailSpan = (): HTMLElement =>
+      account!.email ? h('span', {}, [account!.email]) : h('span', { class: 'auth-muted' }, ['未绑定邮箱']);
+    const defaultName = (): string =>
+      account!.username || (account!.email ? account!.email.split('@')[0] : '') || 'User';
+    // Name — click to rename (updates the display name shown on comments on
+    // every site; the login identifier is untouched). Both the static row and
+    // the editor row live inside a fixed-height .auth-name-row so the email
+    // line below never shifts while editing.
+    const renderIdLine = (): void => {
+      const name = h(
+        'strong',
+        { class: 'auth-name', role: 'button', tabindex: '0', title: '点击修改用户名' },
+        [account!.displayName]
+      );
+      const row = h('div', { class: 'auth-name-row' }, [name]);
+      if (account!.username) {
+        row.append(h('span', { class: 'auth-handle' }, [`@${account!.username}`]));
+      }
+      const startEdit = (): void => {
+        const nameInput = input('text', '用户名（留空恢复默认）', { maxlength: '32' });
+        nameInput.value = account!.displayName;
+        const save = h('button', { class: 'auth-submit small', type: 'button' }, ['保存']);
+        const cancel = h('button', { class: 'auth-text', type: 'button' }, ['取消']);
+        // Optimistic: reflect the new name instantly, reconcile in the
+        // background, revert only on failure.
+        const commit = (): void => {
+          const requested = nameInput.value.replace(/\s+/g, ' ').trim();
+          const previous = account!.displayName;
+          const optimistic = requested || defaultName();
+          if (optimistic === previous) {
+            renderIdLine();
+            return;
+          }
+          showError('');
+          account!.displayName = optimistic;
+          renderIdLine();
+          renderAvatar(); // fallback initial follows the name
+          onChange();
+          void api.auth
+            .updateProfile(token, { displayName: requested })
+            .then(({ user }) => {
+              account = user;
+              renderIdLine();
+              renderAvatar();
+              onChange();
+            })
+            .catch((err) => {
+              account!.displayName = previous;
+              renderIdLine();
+              renderAvatar();
+              onChange();
+              showError(messageFor(err));
+            });
+        };
+        save.addEventListener('click', commit);
+        cancel.addEventListener('click', renderIdLine);
+        nameInput.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') commit();
+          if (event.key === 'Escape') renderIdLine();
+        });
+        const editor = h('div', { class: 'auth-name-row auth-name-editor' }, [nameInput, save, cancel]);
+        idLine.replaceChildren(editor, emailSpan());
+        nameInput.focus();
+        nameInput.select();
+      };
+      name.addEventListener('click', startEdit);
+      name.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          startEdit();
+        }
+      });
+      idLine.replaceChildren(row, emailSpan());
+    };
+    renderIdLine();
+
+    // Avatar — sits left of the name/email; click to upload, hover shows "编辑".
+    // The image is downscaled + re-encoded in the browser, so almost any image is accepted.
+    const fileInput = h('input', { type: 'file', accept: 'image/*', class: 'auth-file' }) as HTMLInputElement;
+    const avatarMedia = h('span', { class: 'auth-avatar-media' });
+    const renderAvatar = (): void => {
+      avatarMedia.replaceChildren();
+      if (account!.avatar) {
+        avatarMedia.append(h('img', { src: config.authOrigin + account!.avatar, alt: '' }));
+      } else {
+        avatarMedia.append(h('span', { class: 'auth-avatar-fallback' }, [Array.from(account!.displayName)[0] || '?']));
+      }
+    };
+    renderAvatar();
+    const avatarEdit = h(
+      'button',
+      { class: 'auth-avatar-edit', type: 'button', 'aria-label': '编辑头像', title: '编辑' },
+      [avatarMedia, h('span', { class: 'auth-avatar-hint' }, ['编辑'])]
+    );
+    avatarEdit.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (!file) return;
+      if (file.size > 20 * 1024 * 1024) {
+        showError('图片太大了');
+        return;
+      }
+      showError('');
+      void (async () => {
+        try {
+          const blob = await compressImage(file);
+          const res = await api.auth.uploadAvatar(token, blob);
+          account!.avatar = res.avatar;
+          renderAvatar();
+          onChange();
+        } catch (err) {
+          showError(messageFor(err));
+        }
+      })();
+    });
+    const identityRow = h('div', { class: 'auth-identity' }, [avatarEdit, idLine, fileInput]);
 
     // Badge picker
     const badgeRow = h('div', { class: 'auth-badges' });
@@ -394,21 +564,100 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
           swatch,
           h('span', {}, [BADGE_LABEL[kind]])
         ]);
-        option.addEventListener('click', async () => {
+        option.addEventListener('click', () => {
           if (account!.badge === kind) return;
-          try {
-            await api.auth.setBadge(token, kind);
-            account!.badge = kind;
+          const previous = account!.badge;
+          account!.badge = kind; // optimistic: reflect immediately
+          renderBadges();
+          onChange();
+          void api.auth.setBadge(token, kind).catch((err) => {
+            account!.badge = previous; // revert on failure
             renderBadges();
             onChange();
-          } catch (err) {
             showError(messageFor(err));
-          }
+          });
         });
         badgeRow.append(option);
       }
     };
     renderBadges();
+
+    // Profile: bio (+visibility), personal website, public email choice.
+    const profileSection = h('details', { class: 'auth-section' });
+    const bioInput = document.createElement('textarea');
+    bioInput.className = 'auth-bio';
+    bioInput.maxLength = 50;
+    bioInput.placeholder = '写一句话介绍自己…';
+    bioInput.value = account.bio || '';
+    const bioCount = h('span', { class: 'auth-bio-count' }, [`${Array.from(bioInput.value).length}/50`]);
+    bioInput.addEventListener('input', () => {
+      bioCount.textContent = `${Array.from(bioInput.value).length}/50`;
+    });
+    const bioField = h('label', { class: 'auth-field' }, [h('span', {}, ['简介']), bioInput, bioCount]);
+
+    const showBioInput = h('input', { type: 'checkbox' }) as HTMLInputElement;
+    showBioInput.checked = account.showBio;
+    const showBioLabel = h('label', { class: 'auth-check' }, [
+      showBioInput,
+      '在评论处展示简介'
+    ]);
+
+    const websiteInput = input('url', 'https://…（留空则不展示）', { autocomplete: 'url' });
+    websiteInput.value = account.website || '';
+
+    const emailModeSelect = document.createElement('select');
+    emailModeSelect.className = 'auth-select';
+    for (const [value, label] of [
+      ['none', '不公开邮箱'],
+      ['login', '公开登录邮箱'],
+      ['custom', '公开另一个邮箱']
+    ] as const) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      emailModeSelect.append(option);
+    }
+    emailModeSelect.value = account.publicEmailMode;
+    const emailModeField = h('label', { class: 'auth-field' }, [h('span', {}, ['联系方式']), emailModeSelect]);
+    const publicEmailInput = input('email', 'public@example.com', { autocomplete: 'off' });
+    publicEmailInput.value = account.publicEmail || '';
+    const publicEmailField = field('公开邮箱地址', publicEmailInput);
+    const syncEmailField = (): void => {
+      publicEmailField.hidden = emailModeSelect.value !== 'custom';
+    };
+    syncEmailField();
+    emailModeSelect.addEventListener('change', syncEmailField);
+
+    const profileSave = h('button', { class: 'auth-submit small', type: 'button' }, ['保存资料']);
+    profileSave.addEventListener('click', async () => {
+      (profileSave as HTMLButtonElement).disabled = true;
+      showError('');
+      try {
+        const mode = emailModeSelect.value as 'none' | 'login' | 'custom';
+        const { user } = await api.auth.updateProfile(token, {
+          bio: bioInput.value,
+          showBio: showBioInput.checked,
+          website: websiteInput.value.trim(),
+          publicEmailMode: mode,
+          ...(mode === 'custom' ? { publicEmail: publicEmailInput.value.trim() } : {})
+        });
+        account = user;
+        showError('资料已保存');
+      } catch (err) {
+        showError(messageFor(err));
+      } finally {
+        (profileSave as HTMLButtonElement).disabled = false;
+      }
+    });
+    profileSection.append(
+      sectionSummary('个人资料'),
+      bioField,
+      showBioLabel,
+      field('个人网站', websiteInput),
+      emailModeField,
+      publicEmailField,
+      profileSave
+    );
 
     // Password
     const passwordSection = h('details', { class: 'auth-section' });
@@ -436,7 +685,7 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
       }
     });
     passwordSection.append(
-      h('summary', {}, [account.hasPassword ? '修改密码' : '设置密码']),
+      sectionSummary(account.hasPassword ? '修改密码' : '设置密码'),
       ...(account.hasPassword ? [field('当前密码', currentPassword)] : []),
       field('新密码', newPassword),
       pwSubmit
@@ -471,10 +720,7 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
       try {
         const { user } = await api.auth.emailVerify(token, emailCode.value.trim());
         account = user;
-        idLine.replaceChildren(
-          h('strong', {}, [user.displayName]),
-          user.email ? h('span', {}, [user.email]) : h('span', { class: 'auth-muted' }, ['未绑定邮箱'])
-        );
+        renderIdLine();
         codeField.hidden = true;
         emailVerify.hidden = true;
         newEmail.value = '';
@@ -486,7 +732,7 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
         emailVerify.disabled = false;
       }
     });
-    emailSection.append(h('summary', {}, ['更换邮箱']), field('新邮箱', newEmail), emailSend, codeField, emailVerify);
+    emailSection.append(sectionSummary('更换邮箱'), field('新邮箱', newEmail), emailSend, codeField, emailVerify);
 
     const logout = h('button', { class: 'auth-text danger', type: 'button' }, ['退出登录']);
     logout.addEventListener('click', async () => {
@@ -502,15 +748,20 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
     });
 
     body.append(
-      idLine,
+      identityRow,
       error,
       h('div', { class: 'auth-label' }, ['评论头像标记']),
       badgeRow,
+      profileSection,
       passwordSection,
       emailSection,
       h('div', { class: 'auth-foot' }, [logout])
     );
     openOverlay(root);
+    requestAnimationFrame(() => {
+      const height = Math.max(0, Math.min(root.getBoundingClientRect().height, window.innerHeight - 32));
+      root.style.height = `${height}px`;
+    });
   }
 
   return {

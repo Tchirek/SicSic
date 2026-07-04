@@ -132,8 +132,17 @@ html.panel-pulling body {
   overflow: hidden;
   touch-action: none;
 }
+/* Inline embeds (config.scrollChaining): let wheel/touch scrolling chain out of
+ * the iframe to the host page with native browser physics. Panel hosts keep
+ * `none` above so the page behind the panel stays put. */
+:root[data-scroll-chaining],
+:root[data-scroll-chaining] body,
+:root[data-scroll-chaining] #app {
+  overscroll-behavior-y: auto;
+}
 button, input, textarea { font: inherit; }
 button { cursor: pointer; }
+[hidden] { display: none !important; }
 
 #app {
   width: 100%;
@@ -164,6 +173,7 @@ header {
 
 header strong { font-size: 14px; font-weight: 560; user-select: none; }
 .header-actions, .composer-actions, .comment-actions { display: flex; align-items: center; gap: 8px; }
+.header-actions { margin-left: auto; }
 
 input, textarea {
   border: 1px solid var(--field-border);
@@ -384,7 +394,7 @@ footer a:hover { color: var(--footer-hover); }
 .comment.reply .avatar-badge { right: -2px; bottom: -2px; width: 12px; height: 12px; }
 .comment.reply .avatar-badge svg { width: 12px; height: 12px; }
 .comment-avatar.editable { cursor: pointer; }
-.comment-avatar.editable:hover { filter: brightness(1.05); }
+.comment-avatar.editable:hover { filter: none; }
 
 .icon-button.account { display: grid; place-items: center; padding: 0; }
 .icon-button.account svg { width: 19px; height: 19px; fill: currentColor; }
@@ -435,9 +445,93 @@ footer a:hover { color: var(--footer-hover); }
 .auth-google { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 9px; border: 1px solid var(--field-border); border-radius: 999px; background: var(--field); color: var(--text); font-size: 12px; cursor: pointer; }
 .auth-google-mark, .auth-google-mark svg { display: block; width: 16px; height: 16px; }
 .auth-google:hover { background: var(--hover-bg); }
-.auth-id { display: grid; gap: 3px; }
+.auth-id { display: grid; gap: 1px; }
 .auth-id strong { font-size: 15px; }
 .auth-id span { font-size: 12px; color: var(--muted); }
+/* Click-to-rename display name in the profile card. The row keeps a fixed
+ * height in both states so the email line below never shifts. */
+.auth-name-row { display: flex; align-items: baseline; gap: 7px; height: 28px; }
+.auth-name-editor { align-items: center; gap: 6px; }
+.auth-name { cursor: pointer; border-bottom: 1px dashed transparent; }
+.auth-name:hover, .auth-name:focus-visible { border-bottom-color: currentColor; }
+.auth-handle { color: var(--faint); font-size: 11px; user-select: none; }
+.auth-name-editor input { width: 150px; padding: 4px 8px; font-size: 13px; border-radius: 8px; }
+
+/* Profile section (bio / website / public email). */
+.auth-bio {
+  width: 100%; min-height: 64px; resize: vertical;
+  padding: 8px 9px; font-size: 12px; line-height: 1.6; border-radius: 9px;
+}
+.auth-bio-count { justify-self: end; color: var(--faint); font-size: 10px; }
+.auth-check { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; cursor: pointer; }
+.auth-check input { width: 12px; height: 12px; margin: 0; accent-color: var(--muted); }
+.auth-select {
+  padding: 8px 9px; font-size: 12px; border-radius: 9px;
+  color: var(--text); background: var(--field); border: 1px solid var(--field-border); outline: none;
+}
+.auth-select:focus { border-color: var(--field-focus); }
+
+/* Quiet per-comment OS disclosure toggle in the composer. */
+.disclose-os {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-left: 8px; padding: 6px 7px; border-radius: 7px;
+  color: var(--muted); font-size: 11px; line-height: 1; user-select: none; cursor: pointer;
+}
+.disclose-os input { width: 11px; height: 11px; margin: 0; accent-color: var(--muted); }
+
+/* Comment extras: OS label, clickable author name, clickable avatars. */
+.comment-os {
+  display: inline-flex; align-items: center; min-height: 15px; padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
+  border-radius: 999px; color: var(--faint); font-size: 9px; line-height: 1.2;
+}
+.comment-os.os-windows { color: #5b8fdc; }
+.comment-os.os-macos { color: #8b929d; }
+.comment-os.os-ios, .comment-os.os-ipados { color: #9b8ee8; }
+.comment-os.os-android { color: #5f9f63; }
+.comment-os.os-chromeos { color: #6aa5d8; }
+.comment-os.os-linux { color: #b58a4f; }
+.comment-name-link { cursor: pointer; border-bottom: 1px dashed var(--faint); }
+.comment-name-link:hover, .comment-name-link:focus-visible { color: var(--hover-text); border-bottom-color: currentColor; }
+.comment-avatar.has-profile { cursor: pointer; }
+.comment-avatar.has-profile:hover { filter: none; }
+
+/* Flash the freshly posted comment. */
+.comment { position: relative; }
+.comment-flash::before {
+  content: ""; position: absolute; inset: 6px -8px; pointer-events: none;
+  border-radius: 12px; background: rgba(96, 165, 250, 0.08); opacity: 0;
+  transform: scaleY(0.96);
+  animation: comment-flash 2.8s cubic-bezier(0.16, 1, 0.3, 1) 1;
+}
+@keyframes comment-flash {
+  0% { opacity: 0; transform: scaleY(0.96); }
+  24% { opacity: 0.72; }
+  66% { opacity: 0.34; }
+  100% { opacity: 0; transform: scaleY(1); }
+}
+
+/* Public profile card + visit confirmation (shares the .auth-* look). */
+.profile-card { width: min(300px, 100%); }
+.profile-card-avatar {
+  position: relative; flex: none; width: 52px; height: 52px;
+  display: grid; place-items: center; overflow: hidden;
+  border: 1px solid var(--field-border); border-radius: 50%;
+  background: var(--field); color: var(--muted); font-size: 20px; user-select: none;
+}
+.profile-card-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profile-card-name { display: flex; align-items: center; gap: 5px; }
+.profile-card-badge { display: inline-flex; line-height: 0; }
+.profile-card-bio { margin: 0; color: var(--markdown); font-size: 12px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.profile-card-rows { display: grid; gap: 7px; }
+.profile-card-row { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+.profile-card-row a { color: var(--link); font-size: 12px; text-decoration: none; overflow-wrap: anywhere; }
+.profile-card-row a:hover { text-decoration: underline; }
+.profile-visit-url {
+  margin: 0; padding: 8px 10px; border-radius: 8px;
+  background: var(--field); color: var(--text); font-size: 12px; overflow-wrap: anywhere;
+}
+.profile-visit-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .auth-muted { color: var(--faint) !important; }
 .auth-label { font-size: 11px; color: var(--muted); }
 .auth-badges { display: flex; gap: 8px; }
@@ -446,6 +540,29 @@ footer a:hover { color: var(--footer-hover); }
 .auth-badge span { font-size: 10px; color: var(--muted); }
 .auth-badge-mark { display: grid; place-items: center; width: 26px; height: 26px; }
 .auth-badge-none { color: var(--faint); font-size: 18px; }
-.auth-section { display: grid; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
-.auth-section summary { font-size: 12px; color: var(--text); cursor: pointer; }
+.auth-section { display: grid; gap: 8px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; }
+.auth-section[open] { padding-bottom: 8px; }
+.auth-section summary {
+  min-height: 38px; display: flex; align-items: center; gap: 6px; padding: 11px 0 5px;
+  list-style: none; line-height: 1; font-size: 12px; color: var(--text); cursor: pointer;
+}
+.auth-section summary::-webkit-details-marker { display: none; }
+.auth-section-title { display: inline-block; }
+.auth-section summary::before { content: "›"; color: var(--faint); font-size: 14px; line-height: 1; transition: transform 0.12s; }
+.auth-section[open] summary::before { transform: rotate(90deg); }
+/* small breathing room between the field(s) and the section's action button */
+.auth-section .auth-submit { margin-top: 5px; }
 .auth-foot { display: flex; justify-content: flex-end; }
+
+/* Custom avatar: comment image + profile editable avatar */
+.avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+.auth-file { display: none; }
+.auth-identity { display: flex; align-items: center; gap: 12px; }
+.auth-avatar-edit { position: relative; flex: none; width: 56px; height: 56px; padding: 0; border: 1px solid var(--field-border); border-radius: 50%; overflow: hidden; background: var(--field); cursor: pointer; }
+.auth-avatar-media { position: absolute; inset: 0; display: grid; place-items: center; }
+.auth-avatar-media img { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter 0.15s; }
+.auth-avatar-fallback { font-size: 22px; color: var(--muted); transition: filter 0.15s; }
+.auth-avatar-hint { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #fff; letter-spacing: 0.05em; opacity: 0; background: rgba(0, 0, 0, 0.28); transition: opacity 0.15s; }
+.auth-avatar-edit:hover .auth-avatar-media img, .auth-avatar-edit:hover .auth-avatar-fallback { filter: brightness(0.85) blur(2px); }
+.auth-avatar-edit:hover .auth-avatar-hint { opacity: 1; }
+.auth-avatar-edit:focus-visible { outline: 2px solid var(--field-focus); outline-offset: 2px; }

@@ -1,5 +1,5 @@
 import type { CommentUiConfig } from './config';
-import type { AccountUser, BadgeKind, CommentItem } from './types';
+import type { AccountUser, BadgeKind, CommentItem, PublicProfile } from './types';
 
 export class ApiError extends Error {
   readonly retryAfterMs: number | null;
@@ -22,6 +22,8 @@ interface CommentPublishPayload {
   nickname: string;
   content: string;
   parentId: string | null;
+  /** Opt-in: let the backend attach a coarse OS label from the User-Agent. */
+  discloseOs?: boolean;
 }
 
 function joinUrl(origin: string, path: string): string {
@@ -72,66 +74,106 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
     return body;
   }
 
+  /** Account requests go to the central auth service, not the site's comment API. */
+  async function authRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const response = await fetch(joinUrl(config.authOrigin, path), init);
+    const body = await parseJson<T>(response);
+    if (!response.ok) throw new ApiError(body.error || `request_${response.status}`, body.retryAfterMs);
+    return body;
+  }
+
   const auth = {
     registerStart(payload: { email: string; username: string; password: string }): Promise<unknown> {
-      return request('/api/auth/register/start', {
+      return authRequest('/api/auth/register/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
     },
     registerVerify(payload: { email: string; code: string }): Promise<{ token: string; user: AccountUser }> {
-      return request('/api/auth/register/verify', {
+      return authRequest('/api/auth/register/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
     },
     login(payload: { identifier: string; password: string }): Promise<{ token: string; user: AccountUser }> {
-      return request('/api/auth/login', {
+      return authRequest('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
     },
     resetStart(email: string): Promise<unknown> {
-      return request('/api/auth/reset/start', {
+      return authRequest('/api/auth/reset/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       });
     },
     resetVerify(payload: { email: string; code: string; password: string }): Promise<{ token: string; user: AccountUser }> {
-      return request('/api/auth/reset/verify', {
+      return authRequest('/api/auth/reset/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
     },
     me(token: string): Promise<{ user: AccountUser }> {
-      return request('/api/auth/me', { headers: authHeaders(token) });
+      return authRequest('/api/auth/me', { headers: authHeaders(token) });
+    },
+    /** Latest public profile data for a batch of author ids (public). */
+    profiles(ids: string[]): Promise<{ profiles: Record<string, PublicProfile> }> {
+      return authRequest(`/api/auth/profiles?ids=${encodeURIComponent(ids.join(','))}`);
+    },
+    /** Partial profile update (displayName / bio / showBio / website / public email). */
+    updateProfile(
+      token: string,
+      patch: {
+        displayName?: string;
+        bio?: string;
+        showBio?: boolean;
+        website?: string;
+        publicEmailMode?: 'none' | 'login' | 'custom';
+        publicEmail?: string;
+      }
+    ): Promise<{ user: AccountUser }> {
+      return authRequest('/api/auth/profile', {
+        method: 'POST',
+        headers: authHeaders(token),
+        body: JSON.stringify(patch)
+      });
     },
     logout(token: string): Promise<unknown> {
-      return request('/api/auth/logout', { method: 'POST', headers: authHeaders(token), body: '{}' });
+      return authRequest('/api/auth/logout', { method: 'POST', headers: authHeaders(token), body: '{}' });
     },
     setPassword(token: string, payload: { currentPassword?: string; newPassword: string }): Promise<unknown> {
-      return request('/api/auth/password', { method: 'POST', headers: authHeaders(token), body: JSON.stringify(payload) });
+      return authRequest('/api/auth/password', { method: 'POST', headers: authHeaders(token), body: JSON.stringify(payload) });
     },
     emailStart(token: string, newEmail: string): Promise<unknown> {
-      return request('/api/auth/email/start', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ newEmail }) });
+      return authRequest('/api/auth/email/start', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ newEmail }) });
     },
     emailVerify(token: string, code: string): Promise<{ user: AccountUser }> {
-      return request('/api/auth/email/verify', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ code }) });
+      return authRequest('/api/auth/email/verify', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ code }) });
     },
     setBadge(token: string, badge: BadgeKind): Promise<{ badge: BadgeKind }> {
-      return request('/api/auth/badge', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ badge }) });
+      return authRequest('/api/auth/badge', { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ badge }) });
+    },
+    uploadAvatar(token: string, file: Blob): Promise<{ avatar: string }> {
+      return authRequest('/api/auth/avatar', {
+        method: 'POST',
+        headers: { 'Content-Type': file.type || 'image/webp', Authorization: `Bearer ${token}` },
+        body: file
+      });
+    },
+    removeAvatar(token: string): Promise<unknown> {
+      return authRequest('/api/auth/avatar', { method: 'DELETE', headers: authHeaders(token) });
     },
     googleStart(origin: string, state?: string): Promise<{ url: string; state: string }> {
       const query = `mode=json&origin=${encodeURIComponent(origin)}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
-      return request(`/api/auth/google/start?${query}`);
+      return authRequest(`/api/auth/google/start?${query}`);
     },
     async googleResult(state: string): Promise<{ pending?: boolean; token?: string; user?: AccountUser; error?: string }> {
-      const response = await fetch(joinUrl(config.apiOrigin, `/api/auth/google/result?state=${encodeURIComponent(state)}`));
+      const response = await fetch(joinUrl(config.authOrigin, `/api/auth/google/result?state=${encodeURIComponent(state)}`));
       const body = await parseJson<{ pending?: boolean; token?: string; user?: AccountUser; error?: string }>(response);
       if (response.status === 202) return body;
       if (!response.ok) throw new ApiError(body.error || `request_${response.status}`, body.retryAfterMs);
@@ -139,7 +181,7 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
     },
     googleStartUrl(origin: string, state?: string): string {
       const query = `origin=${encodeURIComponent(origin)}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
-      return joinUrl(config.apiOrigin, `/api/auth/google/start?${query}`);
+      return joinUrl(config.authOrigin, `/api/auth/google/start?${query}`);
     }
   };
 
@@ -153,7 +195,7 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
       );
     },
 
-    publish(payload: CommentPublishPayload): Promise<unknown> {
+    publish(payload: CommentPublishPayload): Promise<{ id?: string }> {
       return request('/api/comment', {
         method: 'POST',
         headers: headers(),

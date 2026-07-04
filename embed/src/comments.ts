@@ -1,12 +1,17 @@
 import type { CommentElements } from './dom';
-import type { CommentAppState, CommentItem } from './types';
+import type { CommentAppState, CommentItem, PublicProfile } from './types';
 import { badgeSvg } from './badges';
 
 interface CommentRenderOptions {
   anonymousNickname: string;
   adminEnabled: boolean;
   accountEnabled: boolean;
+  apiOrigin: string;
+  /** Avatars are served by the central auth service, not the comment API. */
+  authOrigin: string;
   editingId: string;
+  /** Freshest known public profile for a central-account author id. */
+  profileOf: (authorId: string) => PublicProfile | null;
   onReply: (item: CommentItem) => void;
   onLike: (item: CommentItem) => void;
   onDelete: (item: CommentItem) => void;
@@ -14,6 +19,10 @@ interface CommentRenderOptions {
   onEditSave: (item: CommentItem, content: string) => void;
   onEditCancel: () => void;
   onAvatarEdit: (item: CommentItem) => void;
+  /** Open the public profile card of another signed-in commenter. */
+  onShowProfile: (item: CommentItem) => void;
+  /** Confirm-then-visit the author's personal website. */
+  onVisitWebsite: (url: string, displayName: string) => void;
 }
 
 export function commentNickname(value: string, anonymousNickname: string): string {
@@ -69,16 +78,26 @@ function createCommentNode(
   const avatar = document.createElement('div');
   avatar.className = 'comment-avatar';
   avatar.style.setProperty('--avatar-hue', String(nicknameHue(displayName, options.anonymousNickname)));
-  const initial = document.createElement('span');
-  initial.className = 'avatar-initial';
-  initial.textContent = nicknameInitial(displayName, options.anonymousNickname);
-  avatar.append(initial);
+  if (item.authorAvatar) {
+    const img = document.createElement('img');
+    img.className = 'avatar-img';
+    img.src = options.authOrigin + item.authorAvatar;
+    img.alt = '';
+    img.loading = 'lazy';
+    avatar.append(img);
+  } else {
+    const initial = document.createElement('span');
+    initial.className = 'avatar-initial';
+    initial.textContent = nicknameInitial(displayName, options.anonymousNickname);
+    avatar.append(initial);
+  }
   if (item.authorBadge && item.authorBadge !== 'none') {
     const badge = document.createElement('span');
     badge.className = 'avatar-badge';
     badge.innerHTML = badgeSvg(item.authorBadge, 14);
     avatar.append(badge);
   }
+  const profile = item.authorId ? options.profileOf(item.authorId) : null;
   const ownerControls = options.accountEnabled && Boolean(item.ownedByMe);
   if (ownerControls) {
     avatar.classList.add('editable');
@@ -86,6 +105,14 @@ function createCommentNode(
     avatar.setAttribute('role', 'button');
     avatar.tabIndex = 0;
     avatar.addEventListener('click', () => options.onAvatarEdit(item));
+  } else if (item.authorId) {
+    // Another signed-in commenter: hover shows their bio (if they share one),
+    // click opens the public profile card.
+    if (profile?.bio) avatar.title = profile.bio;
+    avatar.classList.add('has-profile');
+    avatar.setAttribute('role', 'button');
+    avatar.tabIndex = 0;
+    avatar.addEventListener('click', () => options.onShowProfile(item));
   } else {
     avatar.setAttribute('aria-hidden', 'true');
   }
@@ -97,10 +124,24 @@ function createCommentNode(
   head.className = 'comment-head';
   const name = document.createElement('strong');
   name.textContent = displayName;
+  const website = profile?.website;
+  if (website) {
+    name.classList.add('comment-name-link');
+    name.title = website;
+    name.setAttribute('role', 'link');
+    name.tabIndex = 0;
+    name.addEventListener('click', () => options.onVisitWebsite(website, displayName));
+  }
   const time = document.createElement('time');
   time.dateTime = new Date(item.createdAt).toISOString();
   time.textContent = formatTime(item.createdAt);
   head.append(name, time);
+  if (item.osLabel) {
+    const os = document.createElement('span');
+    os.className = `comment-os os-${item.osLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    os.textContent = item.osLabel;
+    head.append(os);
+  }
 
   if (options.editingId === item.id) {
     const editor = document.createElement('div');

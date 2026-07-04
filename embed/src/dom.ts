@@ -11,6 +11,7 @@ export interface CommentElements {
   list: HTMLElement;
   submit: HTMLButtonElement;
   previewToggle: HTMLButtonElement;
+  discloseOs: HTMLInputElement;
   closeButton: HTMLButtonElement;
   accountButton: HTMLButtonElement;
   composerIdentity: HTMLElement;
@@ -34,7 +35,7 @@ export function mountApp(app: HTMLElement, config: CommentUiConfig): CommentElem
       </div>
     </header>
     <section class="composer">
-      <input class="nickname" maxlength="32" autocomplete="nickname" placeholder="昵称">
+      <input class="nickname" maxlength="32" autocomplete="nickname" placeholder="昵称（选填）">
       <div class="composer-identity" hidden></div>
       <div class="reply-target" hidden></div>
       <div class="editor-surface">
@@ -43,6 +44,9 @@ export function mountApp(app: HTMLElement, config: CommentUiConfig): CommentElem
       </div>
       <div class="composer-actions">
         <button class="text-button preview-toggle" type="button">预览</button>
+        <label class="disclose-os">
+          <input type="checkbox">展示UA
+        </label>
         <span class="status" role="status"></span>
         <button class="submit" type="button">发布</button>
       </div>
@@ -64,12 +68,21 @@ export function mountApp(app: HTMLElement, config: CommentUiConfig): CommentElem
     list: requireElement(app, '.comment-list'),
     submit: requireElement(app, '.submit'),
     previewToggle: requireElement(app, '.preview-toggle'),
+    discloseOs: requireElement(app, '.disclose-os input'),
     closeButton: requireElement(app, '.close'),
     accountButton: requireElement(app, '.account'),
     composerIdentity: requireElement(app, '.composer-identity')
   };
 
   elements.commentTitle.textContent = config.title;
+  if (!config.showTitle) elements.commentTitle.hidden = true;
+  if (!config.showClose) elements.closeButton.hidden = true;
+  // If nothing in the header remains visible (no title, no close, and accounts
+  // are off so the account button is already hidden), drop the whole bar so it
+  // takes up no space.
+  if (!config.showTitle && !config.showClose && !config.features.auth) {
+    requireElement<HTMLElement>(app, 'header').hidden = true;
+  }
   elements.nickname.value = localStorage.getItem(config.nicknameStorageKey) || '';
   requireElement<HTMLAnchorElement>(app, '.source-link').href = config.sourceRepoUrl;
   return elements;

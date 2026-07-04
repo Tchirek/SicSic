@@ -1,9 +1,12 @@
 import { readdir, readFile, stat } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(process.argv[2] || process.cwd());
 const self = path.resolve(fileURLToPath(import.meta.url));
+const execFileAsync = promisify(execFile);
 
 const ignoredDirs = new Set([
   ".git",
@@ -18,7 +21,8 @@ const deniedNames = [
   /^\.env(?:\.(?!example$).*)?$/i,
   /^\.dev\.vars(?:\.(?!example$).*)?$/i,
   /^NUL$/i,
-  /^DEVELOPER-HANDOFF/i,
+  /.*HANDOFF.*\.(?:md|txt)$/i,
+  /(?:review|audit-notes|anti-pattern|internal|private).*\.(?:md|txt)$/i,
   /\.log$/i,
 ];
 
@@ -56,13 +60,23 @@ function isAllowedExampleName(name) {
 
 async function checkContent(filePath) {
   if (path.resolve(filePath) === self) return;
-  const info = await stat(filePath);
+  const info = await stat(filePath).catch(() => null);
+  if (!info) return;
   if (info.size === 0 || info.size > 2 * 1024 * 1024) return;
   const buffer = await readFile(filePath);
   if (buffer.includes(0)) return;
   const text = buffer.toString("utf8");
   for (const pattern of secretPatterns) {
     if (pattern.test(text)) findings.push(`${relative(filePath)}: possible secret`);
+  }
+}
+
+async function trackedFiles() {
+  try {
+    const { stdout } = await execFileAsync("git", ["ls-files"], { cwd: root });
+    return stdout.split(/\r?\n/).filter(Boolean);
+  } catch {
+    return null;
   }
 }
 
@@ -79,7 +93,16 @@ async function walk(dir) {
   }
 }
 
-await walk(root);
+const tracked = await trackedFiles();
+if (tracked) {
+  for (const rel of tracked) {
+    const filePath = path.join(root, rel);
+    checkPath(filePath);
+    await checkContent(filePath);
+  }
+} else {
+  await walk(root);
+}
 
 if (findings.length > 0) {
   console.error(`Public safety audit failed for ${root}`);

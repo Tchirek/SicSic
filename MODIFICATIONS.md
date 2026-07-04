@@ -1,42 +1,28 @@
-# SicSic Comment UI
+# Changes / 修改摘要
 
-Integration and maintenance details: [INTEGRATION.md](./INTEGRATION.md)
+SicSic is derived from BeiyanYunyi/Sodesu v0.5.2 and keeps the upstream AGPL
+license obligations. This file summarizes the product-level changes.
 
-SicSic is an AGPL iframe comment UI. It includes code and ideas derived from
-BeiyanYunyi/Sodesu v0.5.2, with original copyright and license notices kept
-where required. The product entry point is `embed/`.
+SicSic 基于 BeiyanYunyi/Sodesu v0.5.2 修改，并继续遵守上游 AGPL 协议要求。本文只保留
+产品级修改摘要。
 
-## Product changes
+## Current Product / 当前产品
 
-- Refactored the `embed/` runtime into small modules for configuration, API
-  access, parent-window messaging, mobile panel gestures, Markdown preview,
-  operating-system detection, DOM mounting, and comment rendering.
-- Moved deployment-specific origins and CSP values into Vite/Wrangler
-  configuration instead of embedding them in the application logic.
-- Removed attachment upload; kept anonymous commenting as the first-class path.
-- Re-introduced accounts as an opt-in backend capability (`features.auth`): email +
-  password / Google login, profile (change password, rebind email), per-user avatar
-  badge, and owner edit-once / own-delete. The account UI only renders when the active
-  backend implements `/api/auth/*`, so anonymous-only hosts surface no login entry.
-- Preserved Markdown preview, two-level replies, likes, and administrator
-  deletion.
-- Replaced visible sorting controls with a fixed ranking that prioritizes
-  liked comments by like count, then unliked comments by recency.
-- Added deterministic nickname-initial avatars, icon-only heart likes, and a
-  hidden administrator verification trigger.
-- Added normalized operating-system labels and a privacy-preserving,
-  device-bound nickname-change cooldown.
-- Added strict `postMessage` origin checks for iframe integration.
-- Replaced product attribution with `Powered by SicSic v0.1.0`.
+- `embed/` is the deployed iframe comment product.
+- Markdown/GFM preview, replies, likes, and admin deletion are kept.
+- Attachment upload is removed.
+- Anonymous commenting remains the default path.
+- Accounts are optional and only appear for auth-capable backends.
+- Root comments are ranked by liked status, like count, then recency.
+- Runtime integration uses strict `postMessage` origin checks.
+- Footer attribution is `Powered by SicSic`, while upstream Sodesu attribution is
+  retained in source and license material.
 
-## Build
-
-```sh
-cd embed
-npm install
-npm run build
-```
-
-Production defaults live in `embed/src/config.ts` presets and Worker security
-headers live in `embed/wrangler.toml`. Do not commit real `.env*` files; use
-`embed/.env.example` for local overrides.
+- `embed/` 是实际部署的 iframe 评论产品。
+- 保留 Markdown/GFM 预览、回复、点赞和管理员删除。
+- 移除评论附件上传。
+- 匿名评论仍是默认路径。
+- 账户能力可选，只有支持认证的后端才显示账户入口。
+- 根评论按是否被赞、点赞数、时间排序。
+- 运行时集成严格校验 `postMessage` 来源。
+- 页脚显示 `Powered by SicSic`；上游 Sodesu 署名保留在源码与协议材料中。

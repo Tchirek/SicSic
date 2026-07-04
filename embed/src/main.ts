@@ -6,13 +6,17 @@ import { mountApp } from './dom';
 import { renderSafeMarkdown } from './markdown';
 import { installPanelPull } from './panelPull';
 import { createParentBridge } from './parentBridge';
+import { confirmVisit, showProfileCard } from './profileCard';
 import { createAuth, type Auth } from './auth';
-import type { CommentAppState, CommentItem, ParentMessage } from './types';
+import type { CommentAppState, CommentItem, ParentMessage, PublicProfile } from './types';
 
 const appRoot = document.getElementById('app');
 if (!appRoot) throw new Error('missing_app_root');
 
 const config = readConfig();
+// Inline embeds: mark the root so style.css relaxes `overscroll-behavior` and
+// wheel/touch scrolling chains out of the iframe to the host page natively.
+if (config.scrollChaining) document.documentElement.dataset.scrollChaining = 'true';
 const elements = mountApp(appRoot, config);
 const bridge = createParentBridge(config);
 let auth: Auth;
@@ -21,10 +25,16 @@ const api = createCommentApi(config, {
   adminToken: () => state.adminToken,
   sessionToken: () => (auth ? auth.token() : '')
 });
-const panelPull = installPanelPull(elements.app, bridge);
+// The pull-to-close gesture belongs to panel hosts; in an inline embed it would
+// swallow downward touch swipes at the top of the list and block page scroll.
+const panelPull = config.scrollChaining
+  ? { reset(): void {}, destroy(): void {} }
+  : installPanelPull(elements.app, bridge);
 const pendingLikes = new Set<string>();
 let editingId = '';
 const authEnabled = config.features.auth;
+/** Freshest public profiles by author id (filled by overlayProfiles). */
+const profileMap: Record<string, PublicProfile> = {};
 
 const state: CommentAppState = {
   imageId: '',
@@ -63,7 +73,11 @@ function markLocalCommentedImage(imageId: string): void {
   const values = readCommentedImages();
   values.add(imageId);
   const compact = Array.from(values).slice(-500);
-  localStorage.setItem(config.commentedImagesStorageKey, JSON.stringify(compact));
+  try {
+    localStorage.setItem(config.commentedImagesStorageKey, JSON.stringify(compact));
+  } catch {
+    /* storage full/blocked — the local "commented here" hint is best-effort */
+  }
 }
 
 function formatCooldown(value: number | null): string {
@@ -89,12 +103,31 @@ function setReplyTarget(item: CommentItem | null): void {
   }
 }
 
+let resizeFrame = 0;
+let lastPostedHeight = 0;
+
+function queueResize(): void {
+  if (resizeFrame) return;
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = 0;
+    const height = Math.ceil(elements.app.scrollHeight);
+    if (!height || Math.abs(height - lastPostedHeight) < 1) return;
+    lastPostedHeight = height;
+    bridge.post({ type: 'comment-ui:resize', height });
+  });
+}
+
 function render(): void {
   renderComments(elements, state, {
     anonymousNickname: config.anonymousNickname,
     adminEnabled: Boolean(state.adminToken),
     accountEnabled: authEnabled,
+    apiOrigin: config.apiOrigin,
+    authOrigin: config.authOrigin,
     editingId,
+    profileOf: (authorId) => profileMap[authorId] ?? null,
+    onShowProfile: (item) => void openProfileCard(item),
+    onVisitWebsite: (url, name) => confirmVisit(url, name),
     onReply: setReplyTarget,
     onLike: (item) => void toggleLike(item),
     onDelete: (item) => void deleteComment(item),
@@ -111,6 +144,7 @@ function render(): void {
       if (authEnabled) auth.open();
     }
   });
+  queueResize();
 }
 
 async function saveEdit(item: CommentItem, content: string): Promise<void> {
@@ -167,6 +201,7 @@ async function load(): Promise<void> {
       commentCount: response.items.length,
       commentedByMe: Boolean(response.commentedByMe) || hasLocalCommentedImage(requestedImageId)
     });
+    void overlayProfiles(requestedImageId);
   } catch (error) {
     if (requestedImageId === state.imageId) {
       state.loadError = error instanceof Error ? error.message : '加载失败';
@@ -183,6 +218,89 @@ async function load(): Promise<void> {
   }
 }
 
+/**
+ * Overlay the latest displayName/badge/avatar from the central auth service
+ * onto the loaded comments. Sites that snapshot author identity (blog, docs)
+ * would otherwise show stale names/avatars; failures keep the snapshots.
+ */
+async function overlayProfiles(imageId: string): Promise<void> {
+  const ids = [...new Set(state.comments.map((item) => item.authorId).filter((id): id is string => Boolean(id)))];
+  if (ids.length === 0) return;
+  try {
+    const { profiles } = await api.auth.profiles(ids);
+    if (state.imageId !== imageId) return;
+    let changed = false;
+    for (const [id, profile] of Object.entries(profiles)) {
+      // Only re-render when a profile actually differs (name/badge/avatar drive
+      // the comment rows; bio/website drive hover + click affordances).
+      const prev = profileMap[id];
+      if (!prev || JSON.stringify(prev) !== JSON.stringify(profile)) {
+        profileMap[id] = profile;
+        changed = true;
+      }
+    }
+    for (const item of state.comments) {
+      const fresh = item.authorId ? profiles[item.authorId] : undefined;
+      if (!fresh) continue;
+      const badge = fresh.badge as CommentItem['authorBadge'];
+      if (item.nickname !== fresh.displayName || item.authorBadge !== badge || item.authorAvatar !== fresh.avatar) {
+        item.nickname = fresh.displayName;
+        item.authorBadge = badge;
+        item.authorAvatar = fresh.avatar;
+      }
+    }
+    if (changed) render();
+  } catch {
+    /* central unreachable — the stored snapshots remain */
+  }
+}
+
+/** Open the profile card for a commenter (cached, else fetched on demand). */
+async function openProfileCard(item: CommentItem): Promise<void> {
+  const authorId = item.authorId;
+  if (!authorId) return;
+  let profile: PublicProfile | null = profileMap[authorId] ?? null;
+  if (!profile) {
+    try {
+      const { profiles } = await api.auth.profiles([authorId]);
+      profile = profiles[authorId] ?? null;
+      if (profile) profileMap[authorId] = profile;
+    } catch {
+      profile = null;
+    }
+  }
+  // Fall back to the comment's own snapshot so the card still opens offline.
+  showProfileCard(
+    profile ?? {
+      username: null,
+      displayName: commentNickname(item.nickname, config.anonymousNickname),
+      badge: item.authorBadge ?? 'none',
+      avatar: item.authorAvatar ?? null,
+      bio: null,
+      website: null,
+      email: null
+    },
+    config.authOrigin
+  );
+}
+
+/** Scroll the freshly posted comment into view (centred) and flash it. */
+function focusComment(commentId: string): void {
+  const node = elements.list.querySelector<HTMLElement>(`article[data-id="${CSS.escape(commentId)}"]`);
+  if (!node) return;
+  node.classList.add('comment-flash');
+  window.setTimeout(() => node.classList.remove('comment-flash'), 2_800);
+  const scroller = elements.app;
+  if (scroller.scrollHeight > scroller.clientHeight + 4) {
+    // Panel hosts: the iframe scrolls internally.
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  // Inline hosts (iframe sized to content): ask the parent page to scroll.
+  const rect = node.getBoundingClientRect();
+  bridge.post({ type: 'comment-ui:scroll', top: rect.top + window.scrollY, height: rect.height });
+}
+
 async function publish(): Promise<void> {
   const account = authEnabled ? auth.account() : null;
   const rawName = account ? '' : elements.nickname.value.replace(/\s+/g, ' ').trim();
@@ -194,22 +312,28 @@ async function publish(): Promise<void> {
   elements.status.textContent = '';
 
   try {
-    await api.publish({
+    const created = await api.publish({
       imageId: state.imageId,
       nickname: name,
       content,
-      parentId: state.replyTo?.id || null
+      parentId: state.replyTo?.id || null,
+      discloseOs: elements.discloseOs.checked
     });
     markLocalCommentedImage(state.imageId);
 
     if (!account) {
-      if (rawName) localStorage.setItem(config.nicknameStorageKey, rawName);
-      else localStorage.removeItem(config.nicknameStorageKey);
+      try {
+        if (rawName) localStorage.setItem(config.nicknameStorageKey, rawName);
+        else localStorage.removeItem(config.nicknameStorageKey);
+      } catch {
+        /* storage full/blocked — remembering the nickname is best-effort */
+      }
     }
     elements.textarea.value = '';
     setReplyTarget(null);
     setPreview(false);
     await load();
+    if (created && typeof created.id === 'string') focusComment(created.id);
   } catch (error) {
     if (error instanceof ApiError && error.message === 'nickname_change_cooldown') {
       elements.status.textContent = `您的昵称近期已修改过，${formatCooldown(error.retryAfterMs)}可再次修改`;
@@ -332,9 +456,27 @@ window.addEventListener('keydown', (event) => {
     bridge.post({ type: 'comment-ui:request-admin' });
   }
 });
+new ResizeObserver(queueResize).observe(elements.app);
+new MutationObserver(queueResize).observe(elements.app, {
+  attributes: true,
+  childList: true,
+  characterData: true,
+  subtree: true
+});
+window.addEventListener('load', queueResize);
 
 elements.replyTarget.addEventListener('click', () => setReplyTarget(null));
 elements.previewToggle.addEventListener('click', () => setPreview(!state.previewing));
+// Quiet opt-in, remembered per site.
+elements.discloseOs.checked = localStorage.getItem(config.discloseOsStorageKey) === '1';
+elements.discloseOs.addEventListener('change', () => {
+  try {
+    if (elements.discloseOs.checked) localStorage.setItem(config.discloseOsStorageKey, '1');
+    else localStorage.removeItem(config.discloseOsStorageKey);
+  } catch {
+    /* ignore */
+  }
+});
 elements.submit.addEventListener('click', () => void publish());
 elements.textarea.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') void publish();
@@ -357,4 +499,5 @@ if (authEnabled) {
   elements.accountButton.hidden = true;
 }
 
+queueResize();
 bridge.post({ type: 'comment-ui:ready' });
