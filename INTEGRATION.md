@@ -46,6 +46,14 @@ normalpics:drag-channel
 normalpics:panel-reset
 ```
 
+`normalpics:context` requires `imageId`; `viewerId` is optional. Read-only
+loads must work without it. The iframe creates a cryptographically random
+session-only viewer ID only when an anonymous mutation needs one.
+
+`normalpics:context` 只要求 `imageId`，`viewerId` 可选。纯读取在缺少它时也
+必须正常加载；只有匿名 mutation 真正需要身份时，iframe 才创建安全随机、
+仅当前会话有效的 viewer ID。
+
 Iframe to parent:
 
 ```text
