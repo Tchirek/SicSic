@@ -238,7 +238,7 @@ export function createAuth({ config, api, onChange }: AuthOptions) {
   }
 
   function onMessage(event: MessageEvent): void {
-    if (event.origin !== config.apiOrigin) return;
+    if (event.source !== googlePopup || event.origin !== config.apiOrigin) return;
     const data = event.data as { type?: string; token?: string; user?: AccountUser; error?: string };
     if (!data || (data.type !== 'sicsic-auth' && data.type !== 'sodesu-auth')) return;
     finishGoogle(data);

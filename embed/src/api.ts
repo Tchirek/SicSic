@@ -12,7 +12,8 @@ export class ApiError extends Error {
 }
 
 interface ApiContext {
-  viewerId: () => string;
+  peekSessionViewerId: () => string;
+  requireSessionViewerId: () => string;
   adminToken: () => string;
   sessionToken: () => string;
 }
@@ -41,22 +42,16 @@ async function parseJson<T>(response: Response): Promise<T & { error?: string; r
 
 export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
   /** Session bearer for signed-in actions; falls back to the admin token only when asked. */
-  function headers(includeAdmin = false): HeadersInit {
-    const result: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-Viewer-Id': context.viewerId()
-    };
+  function headers(viewerId = ''): HeadersInit {
+    const result: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (viewerId) result['X-Viewer-Id'] = viewerId;
     const session = context.sessionToken();
     if (session) result.Authorization = `Bearer ${session}`;
-    else if (includeAdmin && context.adminToken()) result.Authorization = `Bearer ${context.adminToken()}`;
     return result;
   }
 
   function adminHeaders(): HeadersInit {
-    const result: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-Viewer-Id': context.viewerId()
-    };
+    const result: Record<string, string> = { 'Content-Type': 'application/json' };
     if (context.adminToken()) result.Authorization = `Bearer ${context.adminToken()}`;
     return result;
   }
@@ -159,14 +154,14 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
     list(imageId: string): Promise<{ items: CommentItem[]; commentedByMe?: boolean }> {
       return request<{ items: CommentItem[]; commentedByMe?: boolean }>(
         `/api/comment?imageId=${encodeURIComponent(imageId)}`,
-        { headers: headers() }
+        { headers: headers(context.peekSessionViewerId()) }
       );
     },
 
     publish(payload: CommentPublishPayload): Promise<unknown> {
       return request('/api/comment', {
         method: 'POST',
-        headers: headers(),
+        headers: headers(context.sessionToken() ? context.peekSessionViewerId() : context.requireSessionViewerId()),
         body: JSON.stringify(payload)
       });
     },
@@ -182,7 +177,7 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
     setLike(commentId: string, liked: boolean): Promise<{ likedByMe: boolean; likeCount: number }> {
       return request<{ likedByMe: boolean; likeCount: number }>(`/api/comment/${encodeURIComponent(commentId)}`, {
         method: 'PUT',
-        headers: headers(),
+        headers: headers(context.requireSessionViewerId()),
         body: JSON.stringify({ liked })
       });
     },

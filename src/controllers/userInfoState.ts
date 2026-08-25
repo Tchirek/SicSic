@@ -6,6 +6,9 @@ import { createMemo, createRoot, createSignal, onCleanup, onMount } from 'solid-
 import { refresh } from './commentListState';
 import configProvider from './configProvider';
 
+let profileWindow: Window | null = null;
+let profileOrigin = '';
+
 const userInfoState = createRoot(() => {
   const [userInfo, setUserInfo] = makePersisted(createSignal<UserInfo | null>(null), {
     name: 'WALINE_USER',
@@ -21,9 +24,12 @@ const userInfoState = createRoot(() => {
   const isLogin = createMemo(() => Boolean(userInfo()?.token));
   const isAdmin = createMemo(() => Boolean(userInfo()?.type === 'administrator'));
 
-  const onMessageReceive = ({ data }: { data: { type: 'profile'; data: UserInfo } }): void => {
-    if (!data || data.type !== 'profile') return;
-    setUserInfo((usrInfo) => ({ ...usrInfo, ...data.data }));
+  const onMessageReceive = (event: MessageEvent<{ type?: string; data?: UserInfo }>): void => {
+    if (event.source !== profileWindow || event.origin !== profileOrigin) return;
+    const { data } = event;
+    if (!data || data.type !== 'profile' || !data.data) return;
+    const profile = data.data;
+    setUserInfo((usrInfo) => (usrInfo ? { ...usrInfo, ...profile } : profile));
     [localStorage, sessionStorage]
       .filter((store) => store.getItem('WALINE_USER'))
       .forEach((store) => store.setItem('WALINE_USER', JSON.stringify(userInfo)));
@@ -67,12 +73,13 @@ export async function openProfile() {
     lng: lang,
     token: userInfo()!.token,
   });
-  const handler = window.open(
+  profileOrigin = new URL(serverURL, window.location.href).origin;
+  profileWindow = window.open(
     `${serverURL}/ui/profile?${query.toString()}`,
     '_blank',
     `width=${width},height=${height},left=${left},top=${top},scrollbars=no,resizable=no,status=no,location=no,toolbar=no,menubar=no`,
   );
-  handler?.postMessage({ type: 'TOKEN', data: userInfo()!.token }, '*');
+  profileWindow?.postMessage({ type: 'TOKEN', data: userInfo()!.token }, profileOrigin);
 }
 
 export default userInfoState;

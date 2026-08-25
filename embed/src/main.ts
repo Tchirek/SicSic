@@ -17,7 +17,8 @@ const elements = mountApp(appRoot, config);
 const bridge = createParentBridge(config);
 let auth: Auth;
 const api = createCommentApi(config, {
-  viewerId: () => state.viewerId,
+  peekSessionViewerId,
+  requireSessionViewerId,
   adminToken: () => state.adminToken,
   sessionToken: () => (auth ? auth.token() : '')
 });
@@ -25,6 +26,10 @@ const panelPull = installPanelPull(elements.app, bridge);
 const pendingLikes = new Set<string>();
 let editingId = '';
 const authEnabled = config.features.auth;
+const VIEWER_SESSION_KEY = 'sicsic.viewerId.v1';
+const VIEWER_ID_PATTERN = /^[A-Za-z0-9_-]{16,80}$/;
+let memoryViewerId = '';
+let memoryCommentedImages = new Set<string>();
 
 const state: CommentAppState = {
   imageId: '',
@@ -39,6 +44,39 @@ const state: CommentAppState = {
   previewing: false
 };
 
+function rememberSessionViewerId(viewerId: string): string {
+  if (!VIEWER_ID_PATTERN.test(viewerId)) return '';
+  state.viewerId = viewerId;
+  memoryViewerId = viewerId;
+  try {
+    sessionStorage.setItem(VIEWER_SESSION_KEY, viewerId);
+  } catch {
+    // Memory keeps the identity for the current page when storage is blocked.
+  }
+  return viewerId;
+}
+
+function peekSessionViewerId(): string {
+  if (VIEWER_ID_PATTERN.test(state.viewerId)) return state.viewerId;
+  try {
+    const stored = sessionStorage.getItem(VIEWER_SESSION_KEY) || '';
+    if (VIEWER_ID_PATTERN.test(stored)) return rememberSessionViewerId(stored);
+    if (stored) sessionStorage.removeItem(VIEWER_SESSION_KEY);
+  } catch {
+    // Fall back to memory for this page session.
+  }
+  return VIEWER_ID_PATTERN.test(memoryViewerId) ? memoryViewerId : '';
+}
+
+function requireSessionViewerId(): string {
+  const existing = peekSessionViewerId();
+  if (existing) return existing;
+  const viewerId = typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return rememberSessionViewerId(viewerId);
+}
+
 function applyTheme(theme: unknown): void {
   if (theme === 'light' || theme === 'dark') {
     document.documentElement.dataset.theme = theme;
@@ -47,12 +85,14 @@ function applyTheme(theme: unknown): void {
 
 function readCommentedImages(): Set<string> {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(config.commentedImagesStorageKey) || '[]');
+    localStorage.removeItem(config.commentedImagesStorageKey);
+    const parsed: unknown = JSON.parse(sessionStorage.getItem(config.commentedImagesStorageKey) || '[]');
     if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((item): item is string => typeof item === 'string' && item.length > 0));
+    memoryCommentedImages = new Set(parsed.filter((item): item is string => typeof item === 'string' && item.length > 0));
   } catch {
-    return new Set();
+    // Fall back to memory when storage is blocked or corrupt.
   }
+  return new Set(memoryCommentedImages);
 }
 
 function hasLocalCommentedImage(imageId: string): boolean {
@@ -62,8 +102,12 @@ function hasLocalCommentedImage(imageId: string): boolean {
 function markLocalCommentedImage(imageId: string): void {
   const values = readCommentedImages();
   values.add(imageId);
-  const compact = Array.from(values).slice(-500);
-  localStorage.setItem(config.commentedImagesStorageKey, JSON.stringify(compact));
+  memoryCommentedImages = new Set(Array.from(values).slice(-500));
+  try {
+    sessionStorage.setItem(config.commentedImagesStorageKey, JSON.stringify(Array.from(memoryCommentedImages)));
+  } catch {
+    // Memory keeps the hint for the current page when storage is blocked.
+  }
 }
 
 function formatCooldown(value: number | null): string {
@@ -144,7 +188,7 @@ function onAccountChange(): void {
 }
 
 async function load(): Promise<void> {
-  if (!state.imageId || !state.viewerId) return;
+  if (!state.imageId) return;
   if (state.loading) {
     state.loadAgain = true;
     return;
@@ -189,7 +233,7 @@ async function publish(): Promise<void> {
   const rawName = account ? '' : elements.nickname.value.replace(/\s+/g, ' ').trim();
   const name = account ? account.displayName : rawName || config.anonymousNickname;
   const content = elements.textarea.value.trim();
-  if (!content || !state.imageId || !state.viewerId) return;
+  if (!content || !state.imageId) return;
 
   elements.submit.disabled = true;
   elements.status.textContent = '';
@@ -279,11 +323,13 @@ window.addEventListener('message', (event) => {
   if (!bridge.acceptMessage(event)) return;
   const data = event.data as ParentMessage;
 
-  if (data.type === 'normalpics:context' && data.imageId && data.viewerId) {
+  if (data.type === 'normalpics:context' && data.imageId) {
     const changed = state.imageId !== data.imageId;
-    state.viewerId = data.viewerId;
+    const viewerChanged = Boolean(data.viewerId && !peekSessionViewerId() && rememberSessionViewerId(data.viewerId));
     if (changed) {
       resetForImage(data.imageId);
+    }
+    if (changed || viewerChanged) {
       void load();
     }
     return;
