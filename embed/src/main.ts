@@ -26,7 +26,6 @@ const panelPull = installPanelPull(elements.app, bridge);
 const pendingLikes = new Set<string>();
 let editingId = '';
 const authEnabled = config.features.auth;
-const VIEWER_SESSION_KEY = 'sicsic.viewerId.v1';
 const VIEWER_ID_PATTERN = /^[A-Za-z0-9_-]{16,80}$/;
 let memoryViewerId = '';
 let memoryCommentedImages = new Set<string>();
@@ -49,7 +48,7 @@ function rememberSessionViewerId(viewerId: string): string {
   state.viewerId = viewerId;
   memoryViewerId = viewerId;
   try {
-    sessionStorage.setItem(VIEWER_SESSION_KEY, viewerId);
+    sessionStorage.setItem(config.viewerStorageKey, viewerId);
   } catch {
     // Memory keeps the identity for the current page when storage is blocked.
   }
@@ -59,9 +58,9 @@ function rememberSessionViewerId(viewerId: string): string {
 function peekSessionViewerId(): string {
   if (VIEWER_ID_PATTERN.test(state.viewerId)) return state.viewerId;
   try {
-    const stored = sessionStorage.getItem(VIEWER_SESSION_KEY) || '';
+    const stored = sessionStorage.getItem(config.viewerStorageKey) || '';
     if (VIEWER_ID_PATTERN.test(stored)) return rememberSessionViewerId(stored);
-    if (stored) sessionStorage.removeItem(VIEWER_SESSION_KEY);
+    if (stored) sessionStorage.removeItem(config.viewerStorageKey);
   } catch {
     // Fall back to memory for this page session.
   }

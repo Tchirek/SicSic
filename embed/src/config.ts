@@ -22,6 +22,7 @@ export interface CommentUiConfig {
   upstreamRepoUrl: string;
   nicknameStorageKey: string;
   commentedImagesStorageKey: string;
+  viewerStorageKey: string;
   sessionStorageKey: string;
   title: string;
   anonymousNickname: string;
@@ -135,6 +136,7 @@ export function readConfig(): CommentUiConfig {
     upstreamRepoUrl: raw.upstreamRepoUrl || runtimeEnv.VITE_UPSTREAM_REPO_URL || DEFAULT_UPSTREAM_REPO_URL,
     nicknameStorageKey: raw.nicknameStorageKey || `${storageNamespace}_nickname`,
     commentedImagesStorageKey: `${storageNamespace}_commented_images`,
+    viewerStorageKey: `${storageNamespace}_viewer`,
     sessionStorageKey: `${storageNamespace}_session`,
     title: raw.title || runtimeEnv.VITE_COMMENT_TITLE || '评论',
     anonymousNickname: raw.anonymousNickname || runtimeEnv.VITE_ANONYMOUS_NICKNAME || 'Anonymous',

@@ -161,7 +161,7 @@ export function createCommentApi(config: CommentUiConfig, context: ApiContext) {
     publish(payload: CommentPublishPayload): Promise<unknown> {
       return request('/api/comment', {
         method: 'POST',
-        headers: headers(context.sessionToken() ? context.peekSessionViewerId() : context.requireSessionViewerId()),
+        headers: headers(context.sessionToken() ? '' : context.requireSessionViewerId()),
         body: JSON.stringify(payload)
       });
     },
