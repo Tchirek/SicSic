@@ -13,6 +13,6 @@ export default defineConfig({
   ],
   build: {
     target: 'esnext',
-    lib: { entry: 'src/index.tsx', name: 'Sodesu' },
+    lib: { entry: 'src/index.tsx', name: 'Sodesu', cssFileName: 'sodesu-comment' },
   },
 });
