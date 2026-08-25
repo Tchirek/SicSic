@@ -65,6 +65,7 @@
     "src"
   ],
   "scripts": {
+    "test": "tsx --test embed/test/api.test.mjs",
     "audit:hardening": "node scripts/audit-hardening.mjs",
     "audit:public-export": "node scripts/audit-public-safety.mjs",
     "start": "vite",
