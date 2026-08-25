@@ -9,13 +9,14 @@ test('comment API creates a viewer only for anonymous mutations', async () => {
   };
 
   let sessionToken = 'account-session';
+  let peekViewerId = '';
   let peekCalls = 0;
   let requireCalls = 0;
   const { createCommentApi } = await import('../src/api.ts');
   const api = createCommentApi({ apiOrigin: 'https://api.example.test' }, {
     peekSessionViewerId() {
       peekCalls += 1;
-      return '';
+      return peekViewerId;
     },
     requireSessionViewerId() {
       requireCalls += 1;
@@ -28,6 +29,12 @@ test('comment API creates a viewer only for anonymous mutations', async () => {
   await api.list('image-123456');
   let headers = new Headers(calls.at(-1).init.headers);
   assert.equal(headers.has('X-Viewer-Id'), false);
+  assert.equal(requireCalls, 0);
+
+  peekViewerId = 'existing-session-viewer';
+  await api.list('image-123456');
+  headers = new Headers(calls.at(-1).init.headers);
+  assert.equal(headers.get('X-Viewer-Id'), 'existing-session-viewer');
   assert.equal(requireCalls, 0);
 
   await api.publish({
