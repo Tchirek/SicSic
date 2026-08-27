@@ -36,7 +36,7 @@ const secretPatterns = [
   /\bsk-[A-Za-z0-9_-]{32,}\b/,
   /\bCFPAT-[A-Za-z0-9_-]{20,}\b/i,
   /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/,
-  /\b(?:api|access|secret|token|password|passwd|private)[A-Z0-9_\-]*\s*[:=]\s*["'][A-Za-z0-9_./+=-]{20,}["']/i,
+  /\b(?:api|access|secret|token|password|passwd|private)[A-Z0-9_-]*\s*[:=]\s*["'][A-Za-z0-9_./+=-]{20,}["']/i,
   /-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----/,
 ];
 
@@ -73,7 +73,7 @@ async function checkContent(filePath) {
 
 async function trackedFiles() {
   try {
-    const { stdout } = await execFileAsync("git", ["ls-files"], { cwd: root });
+    const { stdout } = await execFileAsync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], { cwd: root });
     return stdout.split(/\r?\n/).filter(Boolean);
   } catch {
     return null;
