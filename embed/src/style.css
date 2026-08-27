@@ -134,6 +134,7 @@ html.panel-pulling body {
 }
 button, input, textarea { font: inherit; }
 button { cursor: pointer; }
+[hidden] { display: none !important; }
 
 #app {
   width: 100%;
@@ -164,6 +165,7 @@ header {
 
 header strong { font-size: 14px; font-weight: 560; user-select: none; }
 .header-actions, .composer-actions, .comment-actions { display: flex; align-items: center; gap: 8px; }
+.header-actions { margin-left: auto; }
 
 input, textarea {
   border: 1px solid var(--field-border);
@@ -240,11 +242,13 @@ input:focus, textarea:focus { border-color: var(--field-focus); }
 }
 .submit:disabled { opacity: 0.45; }
 .reply-target {
+  border: 0;
   padding: 7px 9px;
   border-radius: 7px;
   color: var(--muted);
   background: var(--pill-bg);
   font-size: 10px;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -281,7 +285,8 @@ input:focus, textarea:focus { border-color: var(--field-focus); }
 .comment-main { min-width: 0; }
 .comment-head { min-height: 42px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px 9px; }
 .comment.reply .comment-head { min-height: 36px; }
-.comment-head strong { font-size: 12px; font-weight: 560; }
+.comment-head .comment-name { font-size: 12px; font-weight: 560; }
+.comment-name-link { padding: 0; border: 0; color: inherit; background: transparent; text-align: left; }
 .skeleton-comment { pointer-events: none; }
 .skeleton {
   position: relative;
@@ -384,10 +389,11 @@ footer a:hover { color: var(--footer-hover); }
 .comment.reply .avatar-badge { right: -2px; bottom: -2px; width: 12px; height: 12px; }
 .comment.reply .avatar-badge svg { width: 12px; height: 12px; }
 .comment-avatar.editable { cursor: pointer; }
-.comment-avatar.editable:hover { filter: brightness(1.05); }
+.comment-avatar.editable:hover { filter: none; }
 
 .icon-button.account { display: grid; place-items: center; padding: 0; }
 .icon-button.account svg { width: 19px; height: 19px; fill: currentColor; }
+.account-label { display: none; }
 .icon-button.account.signed-in { color: var(--link); }
 .composer-identity { font-size: 11px; color: var(--muted); }
 
@@ -398,69 +404,50 @@ footer a:hover { color: var(--footer-hover); }
 .comment-edit-actions button:first-child { color: var(--submit-text); background: var(--submit-bg); font-weight: 600; }
 .comment-edit-actions button:last-child { color: var(--muted); background: var(--hover-bg); }
 
-.auth-overlay {
-  position: fixed; inset: 0; z-index: 50;
-  display: flex; align-items: center; justify-content: center; padding: 16px;
-  background: rgba(17, 24, 39, 0.42); backdrop-filter: blur(2px);
+/* Quiet per-comment OS disclosure toggle in the composer. */
+.disclose-os {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-left: 8px; padding: 6px 7px; border-radius: 7px;
+  color: var(--muted); font-size: 11px; line-height: 1; user-select: none; cursor: pointer;
 }
-.auth-card {
-  width: min(340px, 100%); max-height: calc(100% - 24px); overflow: auto;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+.disclose-os input { width: 11px; height: 11px; margin: 0; accent-color: var(--muted); }
+
+/* Comment extras: OS label, clickable author name, clickable avatars. */
+.comment-os {
+  display: inline-flex; align-items: center; min-height: 15px; padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
+  border-radius: 999px; color: var(--faint); font-size: 9px; line-height: 1.2;
 }
-.auth-card.auth-entry-card { height: min(430px, calc(100vh - 32px)); }
-.auth-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
-.auth-head strong { font-size: 14px; font-weight: 600; }
-.auth-close { width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; }
-.auth-close:hover { background: var(--hover-bg); color: var(--hover-text); }
-.auth-body { display: grid; gap: 11px; padding: 14px 16px 16px; }
-.auth-tabs { display: flex; gap: 4px; padding: 3px; background: var(--pill-bg); border-radius: 10px; }
-.auth-tab { flex: 1; padding: 7px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
-.auth-tab.active { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
-.auth-pane { display: grid; gap: 11px; }
-.auth-field { display: grid; gap: 5px; }
-.auth-field > span { font-size: 11px; color: var(--muted); }
-.auth-field input { padding: 9px 10px; font-size: 13px; border-radius: 9px; }
-.auth-code { letter-spacing: 0.3em; text-align: center; font-size: 16px; }
-.auth-submit { padding: 10px; border: 0; border-radius: 999px; background: var(--submit-bg); color: var(--submit-text); font-size: 12px; font-weight: 600; cursor: pointer; }
-.auth-submit.small { padding: 8px; font-size: 11px; }
-.auth-submit:disabled { opacity: 0.6; cursor: default; }
-.auth-text { padding: 4px; border: 0; background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; }
-.auth-text.danger { color: var(--danger); }
-.auth-error { min-height: 14px; margin: 0; font-size: 11px; color: var(--danger); }
-.auth-hint { margin: 0; font-size: 12px; color: var(--muted); }
-.auth-divider { display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 11px; }
-.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.auth-row { display: flex; justify-content: flex-end; min-height: 18px; }
-.auth-google { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 9px; border: 1px solid var(--field-border); border-radius: 999px; background: var(--field); color: var(--text); font-size: 12px; cursor: pointer; }
-.auth-google-mark, .auth-google-mark svg { display: block; width: 16px; height: 16px; }
-.auth-google:hover { background: var(--hover-bg); }
-.auth-id { display: grid; gap: 3px; }
-.auth-id strong { font-size: 15px; }
-.auth-id span { font-size: 12px; color: var(--muted); }
-.auth-muted { color: var(--faint) !important; }
-.auth-label { font-size: 11px; color: var(--muted); }
-.auth-badges { display: flex; gap: 8px; }
-.auth-badge { flex: 1; display: grid; gap: 5px; justify-items: center; padding: 9px 4px; border: 1px solid var(--field-border); border-radius: 10px; background: var(--field); cursor: pointer; }
-.auth-badge.selected { border-color: var(--field-focus); box-shadow: 0 0 0 1px var(--field-focus); }
-.auth-badge span { font-size: 10px; color: var(--muted); }
-.auth-badge-mark { display: grid; place-items: center; width: 26px; height: 26px; }
-.auth-badge-none { color: var(--faint); font-size: 18px; }
-.auth-section { display: grid; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
-.auth-section summary { font-size: 12px; color: var(--text); cursor: pointer; }
-/* small breathing room between the field(s) and the section's action button */
-.auth-section .auth-submit { margin-top: 5px; }
-.auth-foot { display: flex; justify-content: flex-end; }
+.comment-os.os-windows { color: #5b8fdc; }
+.comment-os.os-macos { color: #8b929d; }
+.comment-os.os-ios, .comment-os.os-ipados { color: #9b8ee8; }
+.comment-os.os-android { color: #5f9f63; }
+.comment-os.os-chromeos { color: #6aa5d8; }
+.comment-os.os-linux { color: #b58a4f; }
+.comment-name-link { cursor: pointer; border-bottom: 1px dashed var(--faint); }
+.comment-name-link:hover, .comment-name-link:focus-visible { color: var(--hover-text); border-bottom-color: currentColor; }
+.comment-avatar.has-profile { cursor: pointer; }
+.comment-avatar.has-profile:hover { filter: none; }
+
+/* Flash the freshly posted comment. */
+.comment { position: relative; }
+.comment-flash::before {
+  content: ""; position: absolute; inset: 6px -8px; pointer-events: none;
+  border-radius: 12px; background: rgba(96, 165, 250, 0.08); opacity: 0;
+  transform: scaleY(0.96);
+  animation: comment-flash 2.8s cubic-bezier(0.16, 1, 0.3, 1) 1;
+}
+@keyframes comment-flash {
+  0% { opacity: 0; transform: scaleY(0.96); }
+  24% { opacity: 0.72; }
+  66% { opacity: 0.34; }
+  100% { opacity: 0; transform: scaleY(1); }
+}
 
 /* Custom avatar: comment image + profile editable avatar */
 .avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
-.auth-file { display: none; }
-.auth-identity { display: flex; align-items: center; gap: 12px; }
-.auth-avatar-edit { position: relative; flex: none; width: 56px; height: 56px; padding: 0; border: 1px solid var(--field-border); border-radius: 50%; overflow: hidden; background: var(--field); cursor: pointer; }
-.auth-avatar-media { position: absolute; inset: 0; display: grid; place-items: center; }
-.auth-avatar-media img { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter 0.15s; }
-.auth-avatar-fallback { font-size: 22px; color: var(--muted); transition: filter 0.15s; }
-.auth-avatar-hint { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #fff; letter-spacing: 0.05em; opacity: 0; background: rgba(0, 0, 0, 0.28); transition: opacity 0.15s; }
-.auth-avatar-edit:hover .auth-avatar-media img, .auth-avatar-edit:hover .auth-avatar-fallback { filter: brightness(0.85) blur(2px); }
-.auth-avatar-edit:hover .auth-avatar-hint { opacity: 1; }
-.auth-avatar-edit:focus-visible { outline: 2px solid var(--field-focus); outline-offset: 2px; }
+
+.reply-title,
+.field-label {
+  display: none;
+}

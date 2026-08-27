@@ -1,5 +1,6 @@
 import { micromark } from 'micromark';
 import { gfm, gfmHtml } from 'micromark-extension-gfm';
+import type { CommentLocale } from './config';
 
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 
@@ -20,7 +21,7 @@ function isSafeLinkUrl(value: string): boolean {
   }
 }
 
-export function renderSafeMarkdown(markdown: string): string {
+export function renderSafeMarkdown(markdown: string, locale: CommentLocale = 'zh-CN'): string {
   const html = micromark(markdown, {
     allowDangerousHtml: false,
     extensions: [gfm()],
@@ -32,7 +33,7 @@ export function renderSafeMarkdown(markdown: string): string {
 
   for (const image of template.content.querySelectorAll('img')) {
     const src = image.getAttribute('src') || '';
-    if (!isSafeImageUrl(src)) return '<p class="preview-error">图片只允许安全 HTTPS 地址。</p>';
+    if (!isSafeImageUrl(src)) return `<p class="preview-error">${locale === 'zh-TW' ? '圖片只允許安全 HTTPS 位址。' : '图片只允许安全 HTTPS 地址。'}</p>`;
     image.setAttribute('loading', 'lazy');
     image.setAttribute('referrerpolicy', 'no-referrer');
   }
@@ -49,4 +50,3 @@ export function renderSafeMarkdown(markdown: string): string {
 
   return template.innerHTML;
 }
-

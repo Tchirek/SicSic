@@ -1,4 +1,4 @@
-import type { CommentUiConfig } from './config';
+import type { FrameConfig } from './frameConfig';
 import type { ParentOutboundMessage, PullMessage } from './types';
 
 function initialParentOrigin(): string {
@@ -15,7 +15,7 @@ function initialParentOrigin(): string {
   return '';
 }
 
-export function createParentBridge(config: CommentUiConfig) {
+export function createParentBridge(config: Pick<FrameConfig, 'allowedParentOrigins'>) {
   let parentOrigin = initialParentOrigin();
   let dragPort: MessagePort | null = null;
 
@@ -56,4 +56,3 @@ export function createParentBridge(config: CommentUiConfig) {
     setDragPort
   };
 }
-

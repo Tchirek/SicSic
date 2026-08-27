@@ -1,53 +1,63 @@
 # 💬SicSic
 
-SicSic is a small iframe comment UI for NormalPics, NormalDocs, and other
-personal sites. The deployable product lives in `embed/`: a Vite-built static UI
-served by a Cloudflare Worker.
+SicSic is a small comment UI for NormalPics, NormalDocs and personal sites.
+The deployable product lives in `embed/`: one source package with an inline
+comment core, optional Passport identity UI, and an independent iframe panel.
 
-SicSic 是一个轻量 iframe 评论前端，用于 NormalPics、NormalDocs 和其它个人站点。
-可部署产品位于 `embed/`：Vite 构建静态资源，Cloudflare Worker 提供站点与安全响应头。
+SicSic 是用于 NormalPics、NormalDocs 和个人站点的轻量评论前端。
+Blog 使用原生内联评论；Pics / Docs 保留原有 iframe 面板外观和交互。
 
 ## Repository
 
-- `embed/` is the production comment UI.
-- `src/` keeps the Sodesu-derived package code used by the project.
+- `embed/src/core.ts` mounts anonymous-first comments in a host element.
+- `embed/src/passport.ts` loads account/profile features only on identity actions.
+- `embed/src/frame.ts` keeps the existing Pics/Docs panel and parent messages.
+- Root `src/` retains the Sodesu-derived package code.
+
+Custom avatars and badges remain available and follow current account settings,
+including on old comments. Reading comments creates no anonymous viewer ID.
+See the [integration contract](embed/INTEGRATION.md) and
+[trust model](embed/THREAT_MODEL.md).
 
 ## Configuration
 
-The public configuration contract is intentionally one flow:
+Frame presets live in `embed/src/frameConfig.ts`. Optional
+`window.COMMENT_UI_CONFIG` belongs inside the iframe document, not on a
+cross-origin parent. Explicit values override the preset; Vite environment
+values fill unset fields. Inline hosts pass options directly to `core.init()`.
 
-1. Defaults and presets live in `embed/src/config.ts`.
-2. Local/build overrides follow `embed/.env.example`; keep real `.env*` files
-   untracked.
-3. A host page may inject `window.COMMENT_UI_CONFIG` before loading the iframe
-   when the same build must serve another site.
-4. Worker-only security allowlists stay in `embed/wrangler.toml`, because CSP
-   headers belong at the edge, not in the browser runtime.
+The public checkout includes `embed/wrangler.example.toml`, not production
+deployment settings or credentials. Copy it to `embed/wrangler.toml` and set
+your own API origins, frame ancestors and routes. Never put secrets in Vite
+variables: those values are exposed to browsers.
 
-公共配置顺序如下：
+公共仓库保留源码、公开 preset 和示例配置；生产部署配置与凭据不随源码发布。
+头像／徽章功能不裁剪，Blog 与 Pics / Docs 的既有视觉也不重新设计。
 
-1. 默认值与 preset 在 `embed/src/config.ts`。
-2. 本地或构建覆盖参考 `embed/.env.example`；真实 `.env*` 不提交。
-3. 同一份 iframe build 需要服务其它站点时，宿主页面可提前注入
-   `window.COMMENT_UI_CONFIG`。
-4. Worker 的 CSP 与安全 allowlist 留在 `embed/wrangler.toml`，这是边缘响应头配置，
-   不是前端运行时配置。
+## Build and verify
 
-## Build And Deploy
+Requires Node.js 22.19 or newer.
 
 ```sh
 cd embed
-npm install
+npm ci
+npm run check
+npm test
 npm run build
-npx wrangler deploy
+npm run test:budget
 ```
 
-## License And Credits
+After configuring your own Worker, `npm run deploy` deploys the frame only.
+Every build includes an allowlisted corresponding-source archive, with example
+configuration instead of local environment or production deployment files.
+Publishing the frame does not deploy Blog or change any backend origin rules.
+
+## License and credits
 
 SicSic includes code and design work derived from
-[BeiyanYunyi/Sodesu v0.5.2](https://github.com/BeiyanYunyi/sodesu). Original
-copyright notices are retained where required. The project is released under
-AGPL-3.0-or-later; see `LICENSE`.
+[BeiyanYunyi/Sodesu v0.5.2](https://github.com/BeiyanYunyi/sodesu).
+Original copyright notices are retained. The project is released under
+AGPL-3.0-or-later; see [LICENSE](LICENSE) and [modifications](embed/MODIFICATIONS.md).
 
-SicSic 基于 [BeiyanYunyi/Sodesu v0.5.2](https://github.com/BeiyanYunyi/sodesu)
-修改并保留必要的原作者版权信息。项目按 AGPL-3.0-or-later 发布，详见 `LICENSE`。
+SicSic 基于 BeiyanYunyi/Sodesu v0.5.2 修改并保留原作者版权信息，
+继续履行 AGPL 对应源码提供义务。

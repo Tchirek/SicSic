@@ -12,10 +12,27 @@ export interface CommentItem {
   likeCount: number;
   likedByMe: boolean;
   verified?: boolean;
+  /** Optional lookup key for the current profile; nickname keeps the published byline. */
+  authorId?: string | null;
+  /** Whitelisted OS label the commenter chose to disclose (e.g. "Windows"). */
+  osLabel?: string | null;
+  /** Current account badge, included by the comment API even for old comments. */
   authorBadge?: BadgeKind | null;
+  /** Current account avatar URL, not a frozen comment-time image. */
   authorAvatar?: string | null;
   ownedByMe?: boolean;
   editable?: boolean;
+}
+
+/** Public profile data served by the central `/api/auth/profiles` endpoint. */
+export interface PublicProfile {
+  username: string | null;
+  displayName: string;
+  badge: BadgeKind | string;
+  avatar: string | null;
+  bio: string | null;
+  website: string | null;
+  email: string | null;
 }
 
 export interface AccountUser {
@@ -28,6 +45,11 @@ export interface AccountUser {
   hasPassword: boolean;
   googleLinked: boolean;
   avatar: string | null;
+  bio: string | null;
+  showBio: boolean;
+  website: string | null;
+  publicEmailMode: 'none' | 'login' | 'custom';
+  publicEmail: string | null;
 }
 
 export interface CommentAppState {
@@ -60,9 +82,15 @@ export interface PullMessage {
   velocityY?: number;
 }
 
+export interface ResizeMessage {
+  type: 'comment-ui:resize';
+  height: number;
+}
+
 export type ParentOutboundMessage =
   | { type: 'comment-ui:ready' }
   | { type: 'comment-ui:loaded'; imageId: string; commentCount: number; commentedByMe?: boolean }
   | { type: 'comment-ui:close' }
   | { type: 'comment-ui:request-admin' }
+  | ResizeMessage
   | PullMessage;

@@ -1,5 +1,7 @@
 node_modules
 dist
+.wrangler/
+embed/wrangler.toml
 docs/.vitepress/cache
 docs/.vitepress/.temp/
 dev-dist

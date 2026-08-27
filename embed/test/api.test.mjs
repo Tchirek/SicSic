@@ -29,6 +29,7 @@ test('comment API creates a viewer only for anonymous mutations', async () => {
   await api.list('image-123456');
   let headers = new Headers(calls.at(-1).init.headers);
   assert.equal(headers.has('X-Viewer-Id'), false);
+  assert.equal(headers.has('Content-Type'), false);
   assert.equal(requireCalls, 0);
 
   peekViewerId = 'existing-session-viewer';
