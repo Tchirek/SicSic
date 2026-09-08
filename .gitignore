@@ -24,3 +24,6 @@ dev-dist
 *private*.md
 private/
 docs/internal/
+
+test-results/
+playwright-report/

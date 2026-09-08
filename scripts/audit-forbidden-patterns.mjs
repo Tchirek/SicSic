@@ -2,7 +2,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 const root = path.resolve(process.argv[2] || process.cwd());
-const ignoredDirs = new Set(['.git', 'node_modules', 'dist', '.vitepress', 'coverage']);
+const ignoredDirs = new Set(['.git', 'node_modules', 'dist', '.vitepress', 'coverage', 'test-results', 'playwright-report']);
 const checks = [
   { pattern: /\bas unknown as\b/, label: 'unsafe double assertion' },
   { pattern: /\bgetHighEntropyValues\s*\(/, label: 'high entropy UA fingerprinting' },
@@ -17,7 +17,7 @@ function relative(filePath) {
 
 function shouldSkipFile(filePath) {
   const rel = relative(filePath);
-  return rel === 'scripts/audit-hardening.mjs';
+  return rel === 'scripts/audit-forbidden-patterns.mjs';
 }
 
 async function checkContent(filePath) {
@@ -46,9 +46,9 @@ async function walk(dir) {
 await walk(root);
 
 if (findings.length > 0) {
-  console.error(`Hardening audit failed for ${root}`);
+  console.error(`Forbidden-pattern check failed for ${root}`);
   for (const finding of findings) console.error(`- ${finding}`);
   process.exitCode = 1;
 } else {
-  console.log(`Hardening audit passed for ${root}`);
+  console.log(`Forbidden-pattern check passed for ${root}`);
 }

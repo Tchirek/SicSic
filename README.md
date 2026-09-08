@@ -12,7 +12,10 @@ Blog 使用原生内联评论；Pics / Docs 保留原有 iframe 面板外观和�
 - `embed/src/core.ts` mounts anonymous-first comments in a host element.
 - `embed/src/passport.ts` loads account/profile features only on identity actions.
 - `embed/src/frame.ts` keeps the existing Pics/Docs panel and parent messages.
-- Root `src/` retains the Sodesu-derived package code.
+- The former root library and documentation are preserved at [archive/sodesu-0.5.2](https://github.com/Tchirek/SicSic/tree/archive/sodesu-0.5.2). They are historical source, not a second supported package.
+- `embed/package.json` is the only product version and dependency source. Root npm scripts forward to it.
+
+Comment bodies are rendered from Markdown locally; server-supplied HTML is ignored. Images outside the page, comment API and account API origins load only after a reader clicks.
 
 Custom avatars and badges remain available and follow current account settings,
 including on old comments. Reading comments creates no anonymous viewer ID.
@@ -45,12 +48,26 @@ npm run check
 npm test
 npm run build
 npm run test:budget
+npx playwright install chromium
+npm run test:browser
 ```
 
 After configuring your own Worker, `npm run deploy` deploys the frame only.
 Every build includes an allowlisted corresponding-source archive, with example
 configuration instead of local environment or production deployment files.
 Publishing the frame does not deploy Blog or change any backend origin rules.
+
+## Source consumption and deployment
+
+SicSic is the canonical component source. The iframe sites consume the explicitly
+deployed build; GitHub pushes run verification only, never production deployment.
+Inline hosts can import the built core entry from the same pinned release. Existing
+vendored integrations should use node scripts/export.mjs TARGET_DIRECTORY COMMIT
+with a full commit id to update their allowlisted source snapshot. The generated
+SICSIC_REVISION records its origin. Private configuration is neither exported nor
+overwritten; hosts must review the export and build it before any separate deployment.
+
+The 0.2.0 source update does not change the deployed 0.1.4 services.
 
 ## License and credits
 

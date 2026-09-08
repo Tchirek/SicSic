@@ -42,8 +42,19 @@ jobs:
         working-directory: embed
         run: npm run test:budget
 
-      - name: Audit hardening
-        run: npm run audit:hardening -- embed
+      - name: Install Chromium
+        working-directory: embed
+        run: npx playwright install --with-deps chromium
+
+      - name: Test browser contracts on isolated origins
+        working-directory: embed
+        run: npm run test:browser
+
+      - name: Check forbidden patterns
+        run: npm run audit:forbidden-patterns -- embed
 
       - name: Audit public export
         run: npm run audit:public-export -- .
+
+      - name: Verify pinned source export
+        run: node --test scripts/export.test.mjs
